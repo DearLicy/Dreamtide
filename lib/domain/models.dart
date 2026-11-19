@@ -1,0 +1,1009 @@
+import 'dart:convert';
+
+enum ContentLevel {
+  sfw('SFW', '日常与恋爱'),
+  mature('Mature', '成熟恋爱与暧昧'),
+  nsfw('NSFW', '成年人自愿亲密互动');
+
+  const ContentLevel(this.label, this.description);
+
+  final String label;
+  final String description;
+
+  static ContentLevel fromName(String? value) =>
+      values.firstWhere((e) => e.name == value, orElse: () => ContentLevel.sfw);
+}
+
+enum AppThemeMode { system, light, dark }
+
+enum ThreadType { direct, group }
+
+enum MessageKind { text, image, voice, system }
+
+enum MemoryType {
+  userFact('用户信息'),
+  relationship('关系'),
+  experience('共同经历'),
+  promise('承诺'),
+  emotion('情绪记忆'),
+  scene('剧情状态'),
+  boundary('用户边界');
+
+  const MemoryType(this.label);
+  final String label;
+
+  static MemoryType fromName(String? value) => values.firstWhere(
+    (e) => e.name == value,
+    orElse: () => MemoryType.userFact,
+  );
+}
+
+enum Pacing { tender, normal, intense }
+
+enum ProviderKind { openaiCompatible, anthropic }
+
+class OwnerProfile {
+  const OwnerProfile({
+    required this.id,
+    required this.displayName,
+    required this.signature,
+    required this.avatarColor,
+    this.status = '在线',
+  });
+
+  final String id;
+  final String displayName;
+  final String signature;
+  final int avatarColor;
+  final String status;
+
+  OwnerProfile copyWith({
+    String? displayName,
+    String? signature,
+    int? avatarColor,
+    String? status,
+  }) => OwnerProfile(
+    id: id,
+    displayName: displayName ?? this.displayName,
+    signature: signature ?? this.signature,
+    avatarColor: avatarColor ?? this.avatarColor,
+    status: status ?? this.status,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'displayName': displayName,
+    'signature': signature,
+    'avatarColor': avatarColor,
+    'status': status,
+  };
+
+  factory OwnerProfile.fromJson(Map<String, dynamic> json) => OwnerProfile(
+    id: json['id'] as String? ?? 'owner',
+    displayName: json['displayName'] as String? ?? '梦境旅人',
+    signature: json['signature'] as String? ?? '今晚也做一个好梦。',
+    avatarColor: (json['avatarColor'] as num?)?.toInt() ?? 0xFF5B7CFA,
+    status: json['status'] as String? ?? '在线',
+  );
+}
+
+class UserPersona {
+  const UserPersona({
+    required this.id,
+    required this.name,
+    required this.age,
+    required this.pronouns,
+    required this.appearance,
+    required this.personality,
+    required this.background,
+    required this.preferences,
+    required this.avatarColor,
+  });
+
+  final String id;
+  final String name;
+  final String age;
+  final String pronouns;
+  final String appearance;
+  final String personality;
+  final String background;
+  final String preferences;
+  final int avatarColor;
+
+  UserPersona copyWith({
+    String? name,
+    String? age,
+    String? pronouns,
+    String? appearance,
+    String? personality,
+    String? background,
+    String? preferences,
+    int? avatarColor,
+  }) => UserPersona(
+    id: id,
+    name: name ?? this.name,
+    age: age ?? this.age,
+    pronouns: pronouns ?? this.pronouns,
+    appearance: appearance ?? this.appearance,
+    personality: personality ?? this.personality,
+    background: background ?? this.background,
+    preferences: preferences ?? this.preferences,
+    avatarColor: avatarColor ?? this.avatarColor,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'age': age,
+    'pronouns': pronouns,
+    'appearance': appearance,
+    'personality': personality,
+    'background': background,
+    'preferences': preferences,
+    'avatarColor': avatarColor,
+  };
+
+  factory UserPersona.fromJson(Map<String, dynamic> json) => UserPersona(
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '未命名梦设',
+    age: json['age'] as String? ?? '',
+    pronouns: json['pronouns'] as String? ?? '她',
+    appearance: json['appearance'] as String? ?? '',
+    personality: json['personality'] as String? ?? '',
+    background: json['background'] as String? ?? '',
+    preferences: json['preferences'] as String? ?? '',
+    avatarColor: (json['avatarColor'] as num?)?.toInt() ?? 0xFF9B7CF6,
+  );
+}
+
+class Character {
+  const Character({
+    required this.id,
+    required this.name,
+    required this.handle,
+    required this.age,
+    required this.intro,
+    required this.persona,
+    required this.greeting,
+    required this.avatarColor,
+    required this.tags,
+  });
+
+  final String id;
+  final String name;
+  final String handle;
+  final String age;
+  final String intro;
+  final String persona;
+  final String greeting;
+  final int avatarColor;
+  final List<String> tags;
+
+  Character copyWith({
+    String? name,
+    String? handle,
+    String? age,
+    String? intro,
+    String? persona,
+    String? greeting,
+    int? avatarColor,
+    List<String>? tags,
+  }) => Character(
+    id: id,
+    name: name ?? this.name,
+    handle: handle ?? this.handle,
+    age: age ?? this.age,
+    intro: intro ?? this.intro,
+    persona: persona ?? this.persona,
+    greeting: greeting ?? this.greeting,
+    avatarColor: avatarColor ?? this.avatarColor,
+    tags: tags ?? this.tags,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'handle': handle,
+    'age': age,
+    'intro': intro,
+    'persona': persona,
+    'greeting': greeting,
+    'avatarColor': avatarColor,
+    'tags': tags,
+  };
+
+  factory Character.fromJson(Map<String, dynamic> json) => Character(
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '未命名角色',
+    handle: json['handle'] as String? ?? '@character',
+    age: json['age'] as String? ?? '成年',
+    intro: json['intro'] as String? ?? '',
+    persona: json['persona'] as String? ?? '',
+    greeting: json['greeting'] as String? ?? '',
+    avatarColor: (json['avatarColor'] as num?)?.toInt() ?? 0xFF4F7DF3,
+    tags:
+        (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+  );
+}
+
+class DirectorConfig {
+  const DirectorConfig({
+    this.pacing = Pacing.normal,
+    this.narration = 0.45,
+    this.autonomy = 0.55,
+    this.intimacy = 0.35,
+    this.instructions = '',
+  });
+
+  final Pacing pacing;
+  final double narration;
+  final double autonomy;
+  final double intimacy;
+  final String instructions;
+
+  DirectorConfig copyWith({
+    Pacing? pacing,
+    double? narration,
+    double? autonomy,
+    double? intimacy,
+    String? instructions,
+  }) => DirectorConfig(
+    pacing: pacing ?? this.pacing,
+    narration: narration ?? this.narration,
+    autonomy: autonomy ?? this.autonomy,
+    intimacy: intimacy ?? this.intimacy,
+    instructions: instructions ?? this.instructions,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'pacing': pacing.name,
+    'narration': narration,
+    'autonomy': autonomy,
+    'intimacy': intimacy,
+    'instructions': instructions,
+  };
+
+  factory DirectorConfig.fromJson(Map<String, dynamic> json) => DirectorConfig(
+    pacing: Pacing.values.firstWhere(
+      (e) => e.name == json['pacing'],
+      orElse: () => Pacing.normal,
+    ),
+    narration: (json['narration'] as num?)?.toDouble() ?? 0.45,
+    autonomy: (json['autonomy'] as num?)?.toDouble() ?? 0.55,
+    intimacy: (json['intimacy'] as num?)?.toDouble() ?? 0.35,
+    instructions: json['instructions'] as String? ?? '',
+  );
+}
+
+class SceneState {
+  const SceneState({
+    this.location = '城市夜色中的公寓',
+    this.timeHint = '夜晚',
+    this.outfit = '',
+    this.mood = '平静而亲近',
+    this.notes = '',
+    this.director = const DirectorConfig(),
+  });
+
+  final String location;
+  final String timeHint;
+  final String outfit;
+  final String mood;
+  final String notes;
+  final DirectorConfig director;
+
+  SceneState copyWith({
+    String? location,
+    String? timeHint,
+    String? outfit,
+    String? mood,
+    String? notes,
+    DirectorConfig? director,
+  }) => SceneState(
+    location: location ?? this.location,
+    timeHint: timeHint ?? this.timeHint,
+    outfit: outfit ?? this.outfit,
+    mood: mood ?? this.mood,
+    notes: notes ?? this.notes,
+    director: director ?? this.director,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'location': location,
+    'timeHint': timeHint,
+    'outfit': outfit,
+    'mood': mood,
+    'notes': notes,
+    'director': director.toJson(),
+  };
+
+  factory SceneState.fromJson(Map<String, dynamic> json) => SceneState(
+    location: json['location'] as String? ?? '',
+    timeHint: json['timeHint'] as String? ?? '',
+    outfit: json['outfit'] as String? ?? '',
+    mood: json['mood'] as String? ?? '',
+    notes: json['notes'] as String? ?? '',
+    director: DirectorConfig.fromJson(
+      Map<String, dynamic>.from(json['director'] as Map? ?? const {}),
+    ),
+  );
+}
+
+class ConsentProfile {
+  const ConsentProfile({
+    this.ceiling = ContentLevel.mature,
+    this.allowedThemes = const ['慢热恋爱', '私密约会'],
+    this.blockedThemes = const ['强迫', '羞辱'],
+    this.safeWord = 'red',
+    this.paused = false,
+  });
+
+  final ContentLevel ceiling;
+  final List<String> allowedThemes;
+  final List<String> blockedThemes;
+  final String safeWord;
+  final bool paused;
+
+  ConsentProfile copyWith({
+    ContentLevel? ceiling,
+    List<String>? allowedThemes,
+    List<String>? blockedThemes,
+    String? safeWord,
+    bool? paused,
+  }) => ConsentProfile(
+    ceiling: ceiling ?? this.ceiling,
+    allowedThemes: allowedThemes ?? this.allowedThemes,
+    blockedThemes: blockedThemes ?? this.blockedThemes,
+    safeWord: safeWord ?? this.safeWord,
+    paused: paused ?? this.paused,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'ceiling': ceiling.name,
+    'allowedThemes': allowedThemes,
+    'blockedThemes': blockedThemes,
+    'safeWord': safeWord,
+    'paused': paused,
+  };
+
+  factory ConsentProfile.fromJson(Map<String, dynamic> json) => ConsentProfile(
+    ceiling: ContentLevel.fromName(json['ceiling'] as String?),
+    allowedThemes:
+        (json['allowedThemes'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+    blockedThemes:
+        (json['blockedThemes'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+    safeWord: json['safeWord'] as String? ?? 'red',
+    paused: json['paused'] as bool? ?? false,
+  );
+}
+
+class Relationship {
+  const Relationship({
+    required this.id,
+    required this.characterId,
+    required this.personaId,
+    required this.stage,
+    required this.nickname,
+    required this.metrics,
+    required this.consent,
+    required this.scene,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String characterId;
+  final String personaId;
+  final String stage;
+  final String nickname;
+  final Map<String, int> metrics;
+  final ConsentProfile consent;
+  final SceneState scene;
+  final DateTime updatedAt;
+
+  Relationship copyWith({
+    String? personaId,
+    String? stage,
+    String? nickname,
+    Map<String, int>? metrics,
+    ConsentProfile? consent,
+    SceneState? scene,
+    DateTime? updatedAt,
+  }) => Relationship(
+    id: id,
+    characterId: characterId,
+    personaId: personaId ?? this.personaId,
+    stage: stage ?? this.stage,
+    nickname: nickname ?? this.nickname,
+    metrics: metrics ?? this.metrics,
+    consent: consent ?? this.consent,
+    scene: scene ?? this.scene,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'characterId': characterId,
+    'personaId': personaId,
+    'stage': stage,
+    'nickname': nickname,
+    'metrics': metrics,
+    'consent': consent.toJson(),
+    'scene': scene.toJson(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
+
+  factory Relationship.fromJson(Map<String, dynamic> json) => Relationship(
+    id: json['id'] as String? ?? '',
+    characterId: json['characterId'] as String? ?? '',
+    personaId: json['personaId'] as String? ?? '',
+    stage: json['stage'] as String? ?? '正在靠近',
+    nickname: json['nickname'] as String? ?? '你',
+    metrics: Map<String, dynamic>.from(
+      json['metrics'] as Map? ?? const {},
+    ).map((key, value) => MapEntry(key, (value as num?)?.toInt() ?? 0)),
+    consent: ConsentProfile.fromJson(
+      Map<String, dynamic>.from(json['consent'] as Map? ?? const {}),
+    ),
+    scene: SceneState.fromJson(
+      Map<String, dynamic>.from(json['scene'] as Map? ?? const {}),
+    ),
+    updatedAt:
+        DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+  );
+}
+
+class Message {
+  const Message({
+    required this.id,
+    required this.threadId,
+    required this.senderId,
+    required this.senderName,
+    required this.text,
+    required this.createdAt,
+    this.kind = MessageKind.text,
+    this.fromAi = false,
+    this.localPath,
+  });
+
+  final String id;
+  final String threadId;
+  final String senderId;
+  final String senderName;
+  final String text;
+  final DateTime createdAt;
+  final MessageKind kind;
+  final bool fromAi;
+  final String? localPath;
+
+  Message copyWith({String? text}) => Message(
+    id: id,
+    threadId: threadId,
+    senderId: senderId,
+    senderName: senderName,
+    text: text ?? this.text,
+    createdAt: createdAt,
+    kind: kind,
+    fromAi: fromAi,
+    localPath: localPath,
+  );
+
+  bool get isRenderable => text.trim().isNotEmpty || localPath != null;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'threadId': threadId,
+    'senderId': senderId,
+    'senderName': senderName,
+    'text': text,
+    'createdAt': createdAt.toIso8601String(),
+    'kind': kind.name,
+    'fromAi': fromAi,
+    'localPath': localPath,
+  };
+
+  factory Message.fromJson(Map<String, dynamic> json) => Message(
+    id: json['id'] as String? ?? '',
+    threadId: json['threadId'] as String? ?? '',
+    senderId: json['senderId'] as String? ?? '',
+    senderName: json['senderName'] as String? ?? '',
+    text: json['text'] as String? ?? '',
+    createdAt:
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    kind: MessageKind.values.firstWhere(
+      (e) => e.name == json['kind'],
+      orElse: () => MessageKind.text,
+    ),
+    fromAi: json['fromAi'] as bool? ?? false,
+    localPath: json['localPath'] as String?,
+  );
+}
+
+class ChatThread {
+  const ChatThread({
+    required this.id,
+    required this.relationshipId,
+    required this.type,
+    required this.title,
+    required this.updatedAt,
+    this.unread = 0,
+    this.pinned = false,
+    this.muted = false,
+    this.participantIds = const [],
+  });
+
+  final String id;
+  final String relationshipId;
+  final ThreadType type;
+  final String title;
+  final DateTime updatedAt;
+  final int unread;
+  final bool pinned;
+  final bool muted;
+  final List<String> participantIds;
+
+  ChatThread copyWith({
+    String? title,
+    DateTime? updatedAt,
+    int? unread,
+    bool? pinned,
+    bool? muted,
+    List<String>? participantIds,
+  }) => ChatThread(
+    id: id,
+    relationshipId: relationshipId,
+    type: type,
+    title: title ?? this.title,
+    updatedAt: updatedAt ?? this.updatedAt,
+    unread: unread ?? this.unread,
+    pinned: pinned ?? this.pinned,
+    muted: muted ?? this.muted,
+    participantIds: participantIds ?? this.participantIds,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'relationshipId': relationshipId,
+    'type': type.name,
+    'title': title,
+    'updatedAt': updatedAt.toIso8601String(),
+    'unread': unread,
+    'pinned': pinned,
+    'muted': muted,
+    'participantIds': participantIds,
+  };
+
+  factory ChatThread.fromJson(Map<String, dynamic> json) => ChatThread(
+    id: json['id'] as String? ?? '',
+    relationshipId: json['relationshipId'] as String? ?? '',
+    type: ThreadType.values.firstWhere(
+      (e) => e.name == json['type'],
+      orElse: () => ThreadType.direct,
+    ),
+    title: json['title'] as String? ?? '',
+    updatedAt:
+        DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+    unread: (json['unread'] as num?)?.toInt() ?? 0,
+    pinned: json['pinned'] as bool? ?? false,
+    muted: json['muted'] as bool? ?? false,
+    participantIds:
+        (json['participantIds'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+  );
+}
+
+class MemoryItem {
+  const MemoryItem({
+    required this.id,
+    required this.relationshipId,
+    required this.type,
+    required this.title,
+    required this.content,
+    required this.createdAt,
+    this.sourceThreadId,
+    this.sourceMessageId,
+    this.pinned = false,
+  });
+
+  final String id;
+  final String relationshipId;
+  final MemoryType type;
+  final String title;
+  final String content;
+  final DateTime createdAt;
+  final String? sourceThreadId;
+  final String? sourceMessageId;
+  final bool pinned;
+
+  MemoryItem copyWith({
+    MemoryType? type,
+    String? title,
+    String? content,
+    bool? pinned,
+  }) => MemoryItem(
+    id: id,
+    relationshipId: relationshipId,
+    type: type ?? this.type,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    createdAt: createdAt,
+    sourceThreadId: sourceThreadId,
+    sourceMessageId: sourceMessageId,
+    pinned: pinned ?? this.pinned,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'relationshipId': relationshipId,
+    'type': type.name,
+    'title': title,
+    'content': content,
+    'createdAt': createdAt.toIso8601String(),
+    'sourceThreadId': sourceThreadId,
+    'sourceMessageId': sourceMessageId,
+    'pinned': pinned,
+  };
+
+  factory MemoryItem.fromJson(Map<String, dynamic> json) => MemoryItem(
+    id: json['id'] as String? ?? '',
+    relationshipId: json['relationshipId'] as String? ?? '',
+    type: MemoryType.fromName(json['type'] as String?),
+    title: json['title'] as String? ?? '',
+    content: json['content'] as String? ?? '',
+    createdAt:
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    sourceThreadId: json['sourceThreadId'] as String?,
+    sourceMessageId: json['sourceMessageId'] as String?,
+    pinned: json['pinned'] as bool? ?? false,
+  );
+}
+
+class MomentComment {
+  const MomentComment({
+    required this.id,
+    required this.authorName,
+    required this.content,
+    required this.createdAt,
+    this.fromAi = false,
+  });
+
+  final String id;
+  final String authorName;
+  final String content;
+  final DateTime createdAt;
+  final bool fromAi;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'authorName': authorName,
+    'content': content,
+    'createdAt': createdAt.toIso8601String(),
+    'fromAi': fromAi,
+  };
+
+  factory MomentComment.fromJson(Map<String, dynamic> json) => MomentComment(
+    id: json['id'] as String? ?? '',
+    authorName: json['authorName'] as String? ?? '',
+    content: json['content'] as String? ?? '',
+    createdAt:
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    fromAi: json['fromAi'] as bool? ?? false,
+  );
+}
+
+class Moment {
+  const Moment({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    required this.content,
+    required this.createdAt,
+    this.fromAi = false,
+    this.avatarColor = 0xFF5B7CFA,
+    this.likedBy = const [],
+    this.comments = const [],
+  });
+
+  final String id;
+  final String authorId;
+  final String authorName;
+  final String content;
+  final DateTime createdAt;
+  final bool fromAi;
+  final int avatarColor;
+  final List<String> likedBy;
+  final List<MomentComment> comments;
+
+  Moment copyWith({List<String>? likedBy, List<MomentComment>? comments}) =>
+      Moment(
+        id: id,
+        authorId: authorId,
+        authorName: authorName,
+        content: content,
+        createdAt: createdAt,
+        fromAi: fromAi,
+        avatarColor: avatarColor,
+        likedBy: likedBy ?? this.likedBy,
+        comments: comments ?? this.comments,
+      );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'authorId': authorId,
+    'authorName': authorName,
+    'content': content,
+    'createdAt': createdAt.toIso8601String(),
+    'fromAi': fromAi,
+    'avatarColor': avatarColor,
+    'likedBy': likedBy,
+    'comments': comments.map((e) => e.toJson()).toList(),
+  };
+
+  factory Moment.fromJson(Map<String, dynamic> json) => Moment(
+    id: json['id'] as String? ?? '',
+    authorId: json['authorId'] as String? ?? '',
+    authorName: json['authorName'] as String? ?? '',
+    content: json['content'] as String? ?? '',
+    createdAt:
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    fromAi: json['fromAi'] as bool? ?? false,
+    avatarColor: (json['avatarColor'] as num?)?.toInt() ?? 0xFF5B7CFA,
+    likedBy:
+        (json['likedBy'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+    comments:
+        (json['comments'] as List?)
+            ?.whereType<Map>()
+            .map((e) => MomentComment.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+  );
+}
+
+class ProviderConfig {
+  const ProviderConfig({
+    this.kind = ProviderKind.openaiCompatible,
+    this.baseUrl = 'https://api.openai.com/v1',
+    this.model = 'gpt-4.1-mini',
+    this.rememberKey = false,
+  });
+
+  final ProviderKind kind;
+  final String baseUrl;
+  final String model;
+  final bool rememberKey;
+
+  ProviderConfig copyWith({
+    ProviderKind? kind,
+    String? baseUrl,
+    String? model,
+    bool? rememberKey,
+  }) => ProviderConfig(
+    kind: kind ?? this.kind,
+    baseUrl: baseUrl ?? this.baseUrl,
+    model: model ?? this.model,
+    rememberKey: rememberKey ?? this.rememberKey,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'kind': kind.name,
+    'baseUrl': baseUrl,
+    'model': model,
+    'rememberKey': rememberKey,
+  };
+
+  factory ProviderConfig.fromJson(Map<String, dynamic> json) => ProviderConfig(
+    kind: ProviderKind.values.firstWhere(
+      (e) => e.name == json['kind'],
+      orElse: () => ProviderKind.openaiCompatible,
+    ),
+    baseUrl: json['baseUrl'] as String? ?? 'https://api.openai.com/v1',
+    model: json['model'] as String? ?? 'gpt-4.1-mini',
+    rememberKey: json['rememberKey'] as bool? ?? false,
+  );
+}
+
+class AppSettings {
+  const AppSettings({
+    this.themeMode = AppThemeMode.system,
+    this.ageConfirmed = false,
+    this.onboardingComplete = false,
+    this.currentPersonaId = 'persona_lin',
+    this.provider = const ProviderConfig(),
+    this.contentCeiling = ContentLevel.mature,
+  });
+
+  final AppThemeMode themeMode;
+  final bool ageConfirmed;
+  final bool onboardingComplete;
+  final String currentPersonaId;
+  final ProviderConfig provider;
+  final ContentLevel contentCeiling;
+
+  AppSettings copyWith({
+    AppThemeMode? themeMode,
+    bool? ageConfirmed,
+    bool? onboardingComplete,
+    String? currentPersonaId,
+    ProviderConfig? provider,
+    ContentLevel? contentCeiling,
+  }) => AppSettings(
+    themeMode: themeMode ?? this.themeMode,
+    ageConfirmed: ageConfirmed ?? this.ageConfirmed,
+    onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+    currentPersonaId: currentPersonaId ?? this.currentPersonaId,
+    provider: provider ?? this.provider,
+    contentCeiling: contentCeiling ?? this.contentCeiling,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'themeMode': themeMode.name,
+    'ageConfirmed': ageConfirmed,
+    'onboardingComplete': onboardingComplete,
+    'currentPersonaId': currentPersonaId,
+    'provider': provider.toJson(),
+    'contentCeiling': contentCeiling.name,
+  };
+
+  factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
+    themeMode: AppThemeMode.values.firstWhere(
+      (e) => e.name == json['themeMode'],
+      orElse: () => AppThemeMode.system,
+    ),
+    ageConfirmed: json['ageConfirmed'] as bool? ?? false,
+    onboardingComplete: json['onboardingComplete'] as bool? ?? false,
+    currentPersonaId: json['currentPersonaId'] as String? ?? 'persona_lin',
+    provider: ProviderConfig.fromJson(
+      Map<String, dynamic>.from(json['provider'] as Map? ?? const {}),
+    ),
+    contentCeiling: ContentLevel.fromName(json['contentCeiling'] as String?),
+  );
+}
+
+class AppData {
+  const AppData({
+    required this.schemaVersion,
+    required this.owner,
+    required this.settings,
+    required this.personas,
+    required this.characters,
+    required this.relationships,
+    required this.threads,
+    required this.messages,
+    required this.memories,
+    required this.moments,
+  });
+
+  final int schemaVersion;
+  final OwnerProfile owner;
+  final AppSettings settings;
+  final List<UserPersona> personas;
+  final List<Character> characters;
+  final List<Relationship> relationships;
+  final List<ChatThread> threads;
+  final List<Message> messages;
+  final List<MemoryItem> memories;
+  final List<Moment> moments;
+
+  AppData copyWith({
+    OwnerProfile? owner,
+    AppSettings? settings,
+    List<UserPersona>? personas,
+    List<Character>? characters,
+    List<Relationship>? relationships,
+    List<ChatThread>? threads,
+    List<Message>? messages,
+    List<MemoryItem>? memories,
+    List<Moment>? moments,
+  }) => AppData(
+    schemaVersion: schemaVersion,
+    owner: owner ?? this.owner,
+    settings: settings ?? this.settings,
+    personas: personas ?? this.personas,
+    characters: characters ?? this.characters,
+    relationships: relationships ?? this.relationships,
+    threads: threads ?? this.threads,
+    messages: messages ?? this.messages,
+    memories: memories ?? this.memories,
+    moments: moments ?? this.moments,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'schemaVersion': schemaVersion,
+    'owner': owner.toJson(),
+    'settings': settings.toJson(),
+    'personas': personas.map((e) => e.toJson()).toList(),
+    'characters': characters.map((e) => e.toJson()).toList(),
+    'relationships': relationships.map((e) => e.toJson()).toList(),
+    'threads': threads.map((e) => e.toJson()).toList(),
+    'messages': messages.map((e) => e.toJson()).toList(),
+    'memories': memories.map((e) => e.toJson()).toList(),
+    'moments': moments.map((e) => e.toJson()).toList(),
+  };
+
+  factory AppData.fromJson(Map<String, dynamic> json) => AppData(
+    schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? 2,
+    owner: OwnerProfile.fromJson(
+      Map<String, dynamic>.from(json['owner'] as Map? ?? const {}),
+    ),
+    settings: AppSettings.fromJson(
+      Map<String, dynamic>.from(json['settings'] as Map? ?? const {}),
+    ),
+    personas:
+        (json['personas'] as List?)
+            ?.whereType<Map>()
+            .map((e) => UserPersona.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+    characters:
+        (json['characters'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Character.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+    relationships:
+        (json['relationships'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Relationship.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+    threads:
+        (json['threads'] as List?)
+            ?.whereType<Map>()
+            .map((e) => ChatThread.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+    messages:
+        (json['messages'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Message.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+    memories:
+        (json['memories'] as List?)
+            ?.whereType<Map>()
+            .map((e) => MemoryItem.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+    moments:
+        (json['moments'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Moment.fromJson(Map<String, dynamic>.from(e)))
+            .toList() ??
+        const [],
+  );
+
+  String encode() => jsonEncode(toJson());
+
+  factory AppData.decode(String source) =>
+      AppData.fromJson(Map<String, dynamic>.from(jsonDecode(source) as Map));
+
+  Character? characterForRelationship(Relationship relationship) {
+    for (final character in characters) {
+      if (character.id == relationship.characterId) return character;
+    }
+    return null;
+  }
+
+  Relationship? relationshipForThread(ChatThread thread) {
+    for (final relationship in relationships) {
+      if (relationship.id == thread.relationshipId) return relationship;
+    }
+    return null;
+  }
+
+  ChatThread? threadForRelationship(String relationshipId) {
+    for (final thread in threads) {
+      if (thread.relationshipId == relationshipId) return thread;
+    }
+    return null;
+  }
+
+  UserPersona? personaById(String id) {
+    for (final persona in personas) {
+      if (persona.id == id) return persona;
+    }
+    return null;
+  }
+}

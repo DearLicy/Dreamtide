@@ -1,0 +1,190 @@
+<div align="center">
+
+# 触梦 · Dreamtide
+
+**属于自己的私人梦境恋爱宇宙**
+
+本地优先 · BYOK · 纯本地 AI 社交 · 18+
+
+[![CI](https://github.com/DearLicy/Dreamtide/actions/workflows/ci.yml/badge.svg)](https://github.com/DearLicy/Dreamtide/actions/workflows/ci.yml)
+[![Web Demo](https://img.shields.io/badge/Web-Dreamtide-5478f6)](https://dearlicy.github.io/Dreamtide/)
+[![License](https://img.shields.io/badge/license-MIT-32a99a.svg)](LICENSE)
+[![18+](https://img.shields.io/badge/audience-18%2B-e07168.svg)](#成年人与内容边界)
+
+[在线体验](https://dearlicy.github.io/Dreamtide/) · [下载与安装](docs/RELEASE.md) · [产品设计](docs/PRODUCT.md) · [架构](docs/ARCHITECTURE.md)
+
+</div>
+
+> Dreamtide 不提供模型账号，也不运营聊天服务器。你自带 API Key，并直接连接自己选择的 OpenAI 兼容或 Anthropic 服务商。
+
+<div align="center">
+  <img src="assets/screenshots/02-messages.png" width="220" alt="消息列表" />
+  <img src="assets/screenshots/04-contacts.png" width="220" alt="联系人与关系" />
+  <img src="assets/screenshots/05-dream-space.png" width="220" alt="梦境空间" />
+</div>
+
+## 这不是另一个 AI Chat
+
+Dreamtide 是一个 **QQ 式 AI 梦境恋爱 IM**：用户在消息、联系人、动态三个根页面中，与多个成年虚构角色经营彼此独立的关系。
+
+每一次聊天都绑定：
+
+- 一套独立的**梦设**；
+- 一位具有稳定人设的 **AI 角色**；
+- 一段拥有数值、场景、导演设置的**关系**；
+- 一组可查看、编辑、固定和删除的**长期记忆**；
+- 一组独立于角色提示词的**用户边界与安全词**。
+
+角色不是回答问题的工具，而是会记住共同经历、保持称呼与关系状态、在梦境空间中点赞和评论的虚构伴侣。
+
+## 页面结构
+
+| 根页面 | 作用 |
+| --- | --- |
+| **消息** | 单聊会话、置顶、免打扰、未读、搜索、最近关系状态 |
+| **联系人** | 角色、分组、关系、群聊入口与梦设绑定 |
+| **动态** | 梦境空间：用户与 AI 角色发文字动态、点赞和评论 |
+
+底部导航只在这三个根页面显示。聊天、角色资料、记忆、导演、场景、边界、设置、备份等页面全部使用全屏二级路由，不再保留底栏。
+
+根页面头像打开侧滑资料抽屉，包含个人资料、切换梦设、收藏与记忆、隐私与安全、数据与备份、设置、夜间模式和关于。
+
+## V2.0 已实现
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| QQ 式三栏 IM | ✅ | 消息 / 联系人 / 动态，二级页面无底栏 |
+| 侧滑资料抽屉 | ✅ | 本地用户资料、梦设快速切换、设置入口 |
+| 单聊与 BYOK | ✅ | OpenAI 兼容 / Anthropic 流式 SSE，无 Key 时本地演示回复 |
+| 独立梦设 | ✅ | 每个关系绑定独立姓名、年龄、外观、背景、偏好 |
+| 关系状态 | ✅ | 关系阶段、昵称、好感/信任/心动/张力 |
+| 长期记忆 | ✅ | 七类记忆、固定、编辑、删除、来源关联、提示词检索 |
+| 导演模式 | ✅ | 节奏、旁白比例、角色主动性、场景亲密度和本轮指令 |
+| 场景状态 | ✅ | 地点、时间、穿着、氛围、剧情备注；重置场景不删记忆 |
+| 内容边界 | ✅ | SFW / Mature / NSFW、关系级上限、允许/禁止主题、安全词、急停 |
+| 梦境空间 | ✅ | 文字动态、点赞、评论、AI 首发响应 |
+| 本地持久化 | ✅ | 原生 SQLite + 内存 FTS5 索引；Web 使用浏览器本地存储 |
+| 数据备份 | ✅ | JSON 复制与恢复，不包含 API Key |
+| 18+ 门控 | ✅ | 首次启动成年确认 |
+
+### 正在完善
+
+| 能力 | 下一阶段 |
+| --- | --- |
+| 图片、相机与原生文件选择 | V2.0.1 |
+| ASR / TTS / 语音消息 | V2.0.1–V2.1 |
+| 生物识别与完整应用锁 | V2.0.1 |
+| SQLCipher 页面级加密 | V2.0.1 |
+| 主动消息与本地通知 | V2.1 |
+| 关系日历与纪念日 | V2.1 |
+| 多角色群聊 | V2.2 |
+| 动态图片/视频、AI 图像、剧情相册 | V2.3 |
+| 实时语音、视频与触觉场景编排 | V2.4 |
+
+## 快速开始
+
+### Web
+
+```bash
+flutter pub get
+flutter run -d chrome
+```
+
+GitHub Pages 构建：
+
+```bash
+flutter build web --release --base-href "/Dreamtide/"
+```
+
+Web 端会使用浏览器本地存储。清理站点数据、无痕模式结束或切换浏览器都可能导致数据丢失，请定期复制备份。密钥默认只在当前标签页使用；选择“记住密钥”时会写入浏览器本地存储，安全性弱于原生系统安全存储。
+
+### Android
+
+```bash
+flutter pub get
+flutter build apk --release --split-per-abi
+```
+
+生成的 APK 位于 `build/app/outputs/flutter-apk/`。正式发布产物由 GitHub Actions 构建。
+
+### iOS
+
+Dreamtide 不上架 App Store。GitHub Release 提供 unsigned IPA，用户通过 iLoader、LiveContainer、SideStore 或自己的 Xcode 证书自签：
+
+```bash
+flutter build ios --release --no-codesign
+```
+
+完整步骤见 [docs/RELEASE.md](docs/RELEASE.md)。
+
+## 本地数据
+
+- 原生端：SQLite 保存应用状态；API Key 写入系统安全存储。
+- Web：应用状态写入浏览器本地存储；API Key 默认仅保留在当前标签页。
+- Dreamtide 不运营账号、云同步、遥测或内容服务器。
+- 对话请求会发送到你配置的模型供应商，请自行阅读其隐私政策。
+- 普通备份不包含 API Key。
+
+## 成年人与内容边界
+
+- 仅面向达到所在地区法定成年年龄的用户。
+- 性相关内容只允许发生在明确成年、自愿的虚构角色之间。
+- 禁止未成年人性内容、现实伤害、胁迫、非自愿互动和绕过同意的表达。
+- 用户边界独立于角色提示词，角色设定不能覆盖。
+- 默认安全词为 `red`；安全词与用户消息完全一致时直接停止，不调用模型。
+- 每段关系可独立设置 SFW / Mature / NSFW 上限。
+- 不使用未经授权的官方角色，不分发 NSFW 模型。
+
+详见 [docs/SAFETY.md](docs/SAFETY.md)。
+
+## 技术结构
+
+- **Flutter 3.35 / Dart 3.9**：Android、iOS、Web 共用产品 UI。
+- **Riverpod**：应用状态、会话生成状态与关系数据。
+- **go_router + StatefulShellRoute**：只有三个根分支保留底部导航。
+- **SQLite / sqflite**：原生本地状态；FTS5 记忆索引。
+- **flutter_secure_storage**：原生 API Key 安全存储。
+- **Kotlin / Swift MethodChannel**：平台标识与 Android `FLAG_SECURE`。
+- **OpenAI Compatible / Anthropic SSE**：自建流式解析与错误收束。
+- **Noto Sans SC（SIL OFL）**：Web 一致的中文字体。
+
+详细数据模型、提示词优先级和后续原生模块见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+
+## 路线图
+
+| 版本 | 重点 |
+| --- | --- |
+| **V2.0** | 三栏 IM、梦设、关系、记忆、导演、边界、文字梦境空间 |
+| **V2.1** | 角色生活状态、关系日历、主动消息、本地通知、语音消息 |
+| **V2.2** | 多角色群聊、独立角色记忆、群共享记忆、发言调度 |
+| **V2.3** | 动态图片/视频、AI 图像、剧情相册、剧情分支 |
+| **V2.4** | 实时语音、视频剧情、触觉场景编排与多感官联动 |
+
+## 明确不做
+
+- SillyTavern / PNG 角色卡生态；
+- Lorebook 世界书；
+- 真实用户社交、关注、私信、举报和云端社区；
+- 会员聊天次数制；
+- 未经授权的官方角色复刻；
+- Dreamtide 自有账号与聊天内容云托管。
+
+群聊是唯一重新开放的旧排除能力，计划于 V2.2 交付。
+
+## 开发
+
+```bash
+flutter analyze
+flutter test
+flutter build web --release --base-href "/Dreamtide/"
+flutter build apk --release --split-per-abi
+flutter build ios --release --no-codesign
+```
+
+所有临时构建文件、签名材料和调试输出必须放在仓库内 `.tmp/`，不要使用系统 `/tmp`。直接向 `main` 提交，不创建功能分支。
+
+## License
+
+源代码使用 MIT License。Noto Sans SC 使用 SIL Open Font License 1.1，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+> Dreamtide 是独立的虚构角色陪伴产品，不隶属于 DeepSeek、OpenAI、Anthropic 或任何模型供应商。

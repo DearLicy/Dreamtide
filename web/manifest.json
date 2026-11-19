@@ -1,0 +1,35 @@
+{
+    "name": "触梦 Dreamtide",
+    "short_name": "触梦",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#F4F6FB",
+    "theme_color": "#5478F6",
+    "description": "本地优先、BYOK 的 AI 梦境恋爱 IM。多梦设、长期记忆、关系成长、导演模式与梦境空间。",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

@@ -1,0 +1,180 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../application/app_controller.dart';
+import '../../domain/models.dart';
+import '../components/dt_detail_page.dart';
+import '../components/dt_controls.dart';
+
+class CharacterEditorPage extends ConsumerStatefulWidget {
+  const CharacterEditorPage({super.key, required this.characterId});
+
+  final String characterId;
+
+  @override
+  ConsumerState<CharacterEditorPage> createState() =>
+      _CharacterEditorPageState();
+}
+
+class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
+  late final TextEditingController _name;
+  late final TextEditingController _handle;
+  late final TextEditingController _age;
+  late final TextEditingController _intro;
+  late final TextEditingController _persona;
+  late final TextEditingController _greeting;
+  late final TextEditingController _tags;
+  String? _existingId;
+  int _color = 0xFF4F7DF3;
+
+  @override
+  void initState() {
+    super.initState();
+    final data = ref.read(appControllerProvider).data;
+    final existing = data.characters
+        .where((e) => e.id == widget.characterId)
+        .firstOrNull;
+    _existingId = existing?.id;
+    _name = TextEditingController(text: existing?.name ?? '');
+    _handle = TextEditingController(text: existing?.handle ?? '');
+    _age = TextEditingController(text: existing?.age ?? '成年');
+    _intro = TextEditingController(text: existing?.intro ?? '');
+    _persona = TextEditingController(text: existing?.persona ?? '');
+    _greeting = TextEditingController(text: existing?.greeting ?? '');
+    _tags = TextEditingController(text: existing?.tags.join('、') ?? '');
+    _color = existing?.avatarColor ?? 0xFF4F7DF3;
+  }
+
+  @override
+  void dispose() {
+    for (final controller in [
+      _name,
+      _handle,
+      _age,
+      _intro,
+      _persona,
+      _greeting,
+      _tags,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DtDetailPage(
+      title: _existingId == null ? '创建角色' : '编辑角色',
+      subtitle: '角色必须是明确成年人，并保持稳定人设与边界',
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          DtSurface(
+            child: Column(
+              children: [
+                TextField(
+                  controller: _name,
+                  decoration: const InputDecoration(labelText: '角色名'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _handle,
+                        decoration: const InputDecoration(
+                          labelText: '用户名',
+                          hintText: '@name',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _age,
+                        decoration: const InputDecoration(labelText: '年龄'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _intro,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: '公开简介'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _persona,
+                  minLines: 5,
+                  maxLines: 10,
+                  decoration: const InputDecoration(
+                    labelText: '稳定人设',
+                    hintText: '身份、性格、表达方式、不可违背的边界……',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _greeting,
+                  minLines: 3,
+                  maxLines: 6,
+                  decoration: const InputDecoration(labelText: '初次问候'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _tags,
+                  decoration: const InputDecoration(
+                    labelText: '标签',
+                    hintText: '用顿号或逗号分隔',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          DtButton(
+            label: _existingId == null ? '创建并开始对话' : '保存角色',
+            onPressed: () {
+              final controller = ref.read(appControllerProvider.notifier);
+              final id = _existingId ?? 'char_${const Uuid().v4()}';
+              final character = Character(
+                id: id,
+                name: _name.text.trim().isEmpty ? '未命名角色' : _name.text.trim(),
+                handle: _handle.text.trim().isEmpty
+                    ? '@dream'
+                    : _handle.text.trim(),
+                age: _age.text.trim().isEmpty ? '成年' : _age.text.trim(),
+                intro: _intro.text.trim(),
+                persona: _persona.text.trim(),
+                greeting: _greeting.text.trim().isEmpty
+                    ? '我们终于见面了。'
+                    : _greeting.text.trim(),
+                avatarColor: _color,
+                tags: _tags.text
+                    .split(RegExp(r'[、,，]'))
+                    .map((e) => e.trim())
+                    .where((e) => e.isNotEmpty)
+                    .toList(),
+              );
+              if (_existingId == null) {
+                final thread = controller.addCharacterWithRelationship(
+                  character,
+                );
+                context.pushReplacement('/character/$id');
+                Future<void>.delayed(const Duration(milliseconds: 50), () {
+                  if (context.mounted) context.push('/chat/${thread.id}');
+                });
+              } else {
+                controller.upsertCharacter(character);
+                Navigator.pop(context);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
