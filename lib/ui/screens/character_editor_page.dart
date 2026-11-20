@@ -25,6 +25,8 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
   late final TextEditingController _age;
   late final TextEditingController _intro;
   late final TextEditingController _persona;
+  late final TextEditingController _voiceProfile;
+  late final TextEditingController _personalPreferences;
   late final TextEditingController _greeting;
   late final TextEditingController _tags;
   String? _existingId;
@@ -43,6 +45,10 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
     _age = TextEditingController(text: existing?.age ?? '成年');
     _intro = TextEditingController(text: existing?.intro ?? '');
     _persona = TextEditingController(text: existing?.persona ?? '');
+    _voiceProfile = TextEditingController(text: existing?.voiceProfile ?? '');
+    _personalPreferences = TextEditingController(
+      text: existing?.personalPreferences ?? '',
+    );
     _greeting = TextEditingController(text: existing?.greeting ?? '');
     _tags = TextEditingController(text: existing?.tags.join('、') ?? '');
     _color = existing?.avatarColor ?? 0xFF4F7DF3;
@@ -56,6 +62,8 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
       _age,
       _intro,
       _persona,
+      _voiceProfile,
+      _personalPreferences,
       _greeting,
       _tags,
     ]) {
@@ -134,6 +142,26 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                 ),
                 const SizedBox(height: 12),
                 DtTextField(
+                  controller: _voiceProfile,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: '说话习惯与禁区',
+                    hintText: '句子长短、口头禅、绝不说的套话；没有就留空',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DtTextField(
+                  controller: _personalPreferences,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: '日常偏好与小坚持',
+                    hintText: '喜欢或讨厌什么、无害但坚定的偏见；不要编造经历',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DtTextField(
                   controller: _greeting,
                   minLines: 3,
                   maxLines: 6,
@@ -173,6 +201,8 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                 persona: _persona.text.trim(),
                 greeting: _greeting.text.trim(),
                 avatarColor: _color,
+                voiceProfile: _voiceProfile.text.trim(),
+                personalPreferences: _personalPreferences.text.trim(),
                 tags: _tags.text
                     .split(RegExp(r'[、,，]'))
                     .map((e) => e.trim())

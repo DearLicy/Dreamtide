@@ -2,13 +2,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class ProviderKeyStore {
+abstract interface class ApiKeyStore {
+  Future<String?> read({required bool persistent});
+
+  Future<void> write(String value, {required bool persistent});
+
+  Future<void> clear();
+}
+
+class ProviderKeyStore implements ApiKeyStore {
   static const _secureKey = 'dreamtide.provider.apiKey';
   static const _webKey = 'dreamtide.provider.apiKey.web';
   static final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
   String? _sessionKey;
 
+  @override
   Future<String?> read({required bool persistent}) async {
     if (kIsWeb) {
       if (!persistent) return _sessionKey;
@@ -19,6 +28,7 @@ class ProviderKeyStore {
     return _secure.read(key: _secureKey);
   }
 
+  @override
   Future<void> write(String value, {required bool persistent}) async {
     if (kIsWeb) {
       _sessionKey = value;
@@ -38,6 +48,7 @@ class ProviderKeyStore {
     }
   }
 
+  @override
   Future<void> clear() async {
     _sessionKey = null;
     if (kIsWeb) {

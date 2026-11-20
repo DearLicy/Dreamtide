@@ -19,10 +19,11 @@ void main() {
 
       final system = bundle.messages.first.content;
       expect(bundle.messages.first.role, 'system');
-      expect(system.indexOf('不可覆盖的平台安全规则'), lessThan(system.indexOf('AI 角色')));
-      expect(system.indexOf('禁止主题'), lessThan(system.indexOf('长期记忆')));
-      expect(system, contains('亲密前先确认'));
+      expect(system.indexOf('平台安全规则'), lessThan(system.indexOf('AI 角色')));
+      expect(system.indexOf('禁止：'), lessThan(system.indexOf('连续性备忘')));
+      expect(system, contains('亲密推进必须明确、自愿、可随时撤回'));
       expect(bundle.usedMemoryIds, contains('mem_3'));
+      expect(bundle.usedMemoryIds.length, lessThanOrEqualTo(3));
       expect(bundle.messages.last.content, contains('工作很累'));
     },
   );
@@ -55,5 +56,31 @@ void main() {
       limit: 2,
     );
     expect(result.first.id, 'boundary');
+  });
+
+  test('unrelated memories are not injected just to fill the context', () {
+    final now = DateTime.now();
+    final result = assembler.retrieveMemories(
+      all: [
+        MemoryItem(
+          id: 'old',
+          relationshipId: 'rel',
+          type: MemoryType.experience,
+          title: '一起看海',
+          content: '周末去了海边',
+          createdAt: now,
+        ),
+        MemoryItem(
+          id: 'unrelated',
+          relationshipId: 'rel',
+          type: MemoryType.userFact,
+          title: '不吃香菜',
+          content: '用户讨厌香菜',
+          createdAt: now,
+        ),
+      ],
+      query: '海边的风很大',
+    );
+    expect(result.map((item) => item.id), ['old']);
   });
 }

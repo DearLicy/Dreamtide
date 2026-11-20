@@ -5,7 +5,34 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('V2 state survives a JSON round trip', () {
     final source = buildSeedData();
-    final restored = AppData.decode(source.encode());
+    final firstThread = source.threads.first;
+    final memoDate = DateTime.utc(2026, 11, 20, 12, 30);
+    final withMemo = source.copyWith(
+      threads: [
+        firstThread.copyWith(
+          contextMemo: '他们约好周末一起去看海。',
+          contextMemoUpdatedAt: memoDate,
+          summarizedThroughMessageId: 'message-42',
+          suppressedMemoryKeys: const ['promise:过期计划'],
+        ),
+        ...source.threads.skip(1),
+      ],
+      characters: [
+        source.characters.first.copyWith(
+          voiceProfile: '少用客套收尾。',
+          personalPreferences: '不喜欢香菜。',
+        ),
+        ...source.characters.skip(1),
+      ],
+      relationships: [
+        source.relationships.first.copyWith(
+          replyEnergy: 32,
+          lastInteractionAt: memoDate,
+        ),
+        ...source.relationships.skip(1),
+      ],
+    );
+    final restored = AppData.decode(withMemo.encode());
 
     expect(restored.schemaVersion, 2);
     expect(restored.characters.length, source.characters.length);
@@ -13,6 +40,14 @@ void main() {
     expect(restored.messages.length, source.messages.length);
     expect(restored.memories.length, source.memories.length);
     expect(restored.moments.length, source.moments.length);
+    expect(restored.threads.first.contextMemo, '他们约好周末一起去看海。');
+    expect(restored.threads.first.contextMemoUpdatedAt, memoDate);
+    expect(restored.threads.first.summarizedThroughMessageId, 'message-42');
+    expect(restored.threads.first.suppressedMemoryKeys, ['promise:过期计划']);
+    expect(restored.characters.first.voiceProfile, '少用客套收尾。');
+    expect(restored.characters.first.personalPreferences, '不喜欢香菜。');
+    expect(restored.relationships.first.replyEnergy, 32);
+    expect(restored.relationships.first.lastInteractionAt, memoDate);
   });
 
   test('empty messages are never renderable', () {

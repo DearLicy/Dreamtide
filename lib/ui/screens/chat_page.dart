@@ -233,6 +233,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 text,
                 onAccepted: () {
                   if (!mounted) return;
+                  _sending = false;
                   if (_textController.text == text) _textController.clear();
                   _nearBottom = true;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -250,6 +251,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ).showSnackBar(SnackBar(content: Text(after.error!)));
               }
             },
+            onCancel: () =>
+                ref.read(appControllerProvider.notifier).interruptGeneration(),
             onMore: () => _showMoreActions(context, relationship),
           ),
         ],
@@ -695,6 +698,7 @@ class _ChatComposer extends StatelessWidget {
     required this.focusNode,
     required this.generating,
     required this.onSend,
+    required this.onCancel,
     required this.onMore,
   });
 
@@ -702,6 +706,7 @@ class _ChatComposer extends StatelessWidget {
   final FocusNode focusNode;
   final bool generating;
   final VoidCallback onSend;
+  final VoidCallback onCancel;
   final VoidCallback onMore;
 
   @override
@@ -738,17 +743,23 @@ class _ChatComposer extends StatelessWidget {
                 final empty = value.text.trim().isEmpty;
                 return DtIconButton(
                   icon: generating
-                      ? FIcons.ellipsis
+                      ? empty
+                            ? Icons.stop_rounded
+                            : FIcons.send
                       : empty
                       ? FIcons.plus
                       : FIcons.send,
                   tooltip: generating
-                      ? '正在回复'
+                      ? empty
+                            ? '停止生成'
+                            : '发送并打断当前回复'
                       : empty
                       ? '更多功能'
                       : '发送',
                   onTap: generating
-                      ? null
+                      ? empty
+                            ? onCancel
+                            : onSend
                       : empty
                       ? onMore
                       : onSend,

@@ -53,6 +53,34 @@ void main() {
     },
   );
   test(
+    'safety word is recorded locally and pauses the relationship without a key',
+    () async {
+      final source = buildSeedData();
+      final relationship = source.relationships.first;
+      final controller = AppController(
+        store: FakeStore(source),
+        keyStore: FakeKeyStore(),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await controller.sendMessage(
+        source.threadForRelationship(relationship.id)!.id,
+        relationship.consent.safeWord,
+      );
+      final updated = controller.state.data.relationships.firstWhere(
+        (item) => item.id == relationship.id,
+      );
+      expect(updated.consent.paused, isTrue);
+      expect(
+        controller.state.data.messages.any(
+          (message) => message.text == relationship.consent.safeWord,
+        ),
+        isTrue,
+      );
+      expect(controller.state.generatingThreadId, isNull);
+      controller.dispose();
+    },
+  );
+  test(
     'publishing creates only user supplied content and no simulated reactions',
     () async {
       final controller = AppController(
@@ -123,5 +151,7 @@ class DeferredAi extends AiClient {
     required String apiKey,
     required List<PromptMessage> messages,
     required void Function(String) onUpdate,
+    int maxOutputTokens = 420,
+    Future<void>? abortTrigger,
   }) async => reply.future;
 }

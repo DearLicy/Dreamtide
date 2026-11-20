@@ -168,6 +168,8 @@ class Character {
     required this.greeting,
     required this.avatarColor,
     required this.tags,
+    this.voiceProfile = '',
+    this.personalPreferences = '',
   });
 
   final String id;
@@ -180,6 +182,12 @@ class Character {
   final int avatarColor;
   final List<String> tags;
 
+  /// Optional concrete speech habits and phrases the character avoids.
+  final String voiceProfile;
+
+  /// Harmless tastes and opinions that make the character distinct.
+  final String personalPreferences;
+
   Character copyWith({
     String? name,
     String? handle,
@@ -189,6 +197,8 @@ class Character {
     String? greeting,
     int? avatarColor,
     List<String>? tags,
+    String? voiceProfile,
+    String? personalPreferences,
   }) => Character(
     id: id,
     name: name ?? this.name,
@@ -199,6 +209,8 @@ class Character {
     greeting: greeting ?? this.greeting,
     avatarColor: avatarColor ?? this.avatarColor,
     tags: tags ?? this.tags,
+    voiceProfile: voiceProfile ?? this.voiceProfile,
+    personalPreferences: personalPreferences ?? this.personalPreferences,
   );
 
   Map<String, dynamic> toJson() => {
@@ -211,6 +223,8 @@ class Character {
     'greeting': greeting,
     'avatarColor': avatarColor,
     'tags': tags,
+    'voiceProfile': voiceProfile,
+    'personalPreferences': personalPreferences,
   };
 
   factory Character.fromJson(Map<String, dynamic> json) => Character(
@@ -224,6 +238,8 @@ class Character {
     avatarColor: (json['avatarColor'] as num?)?.toInt() ?? 0xFF4F7DF3,
     tags:
         (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+    voiceProfile: json['voiceProfile'] as String? ?? '',
+    personalPreferences: json['personalPreferences'] as String? ?? '',
   );
 }
 
@@ -391,6 +407,8 @@ class Relationship {
     required this.consent,
     required this.scene,
     required this.updatedAt,
+    this.replyEnergy = 55,
+    this.lastInteractionAt,
   });
 
   final String id;
@@ -403,6 +421,10 @@ class Relationship {
   final SceneState scene;
   final DateTime updatedAt;
 
+  /// Local conversational pace only; it is not a relationship score.
+  final int replyEnergy;
+  final DateTime? lastInteractionAt;
+
   Relationship copyWith({
     String? personaId,
     String? stage,
@@ -411,6 +433,9 @@ class Relationship {
     ConsentProfile? consent,
     SceneState? scene,
     DateTime? updatedAt,
+    int? replyEnergy,
+    DateTime? lastInteractionAt,
+    bool clearLastInteractionAt = false,
   }) => Relationship(
     id: id,
     characterId: characterId,
@@ -421,6 +446,10 @@ class Relationship {
     consent: consent ?? this.consent,
     scene: scene ?? this.scene,
     updatedAt: updatedAt ?? this.updatedAt,
+    replyEnergy: replyEnergy ?? this.replyEnergy,
+    lastInteractionAt: clearLastInteractionAt
+        ? null
+        : lastInteractionAt ?? this.lastInteractionAt,
   );
 
   Map<String, dynamic> toJson() => {
@@ -433,6 +462,8 @@ class Relationship {
     'consent': consent.toJson(),
     'scene': scene.toJson(),
     'updatedAt': updatedAt.toIso8601String(),
+    'replyEnergy': replyEnergy,
+    'lastInteractionAt': lastInteractionAt?.toIso8601String(),
   };
 
   factory Relationship.fromJson(Map<String, dynamic> json) => Relationship(
@@ -452,6 +483,10 @@ class Relationship {
     ),
     updatedAt:
         DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+    replyEnergy: ((json['replyEnergy'] as num?)?.toInt() ?? 55).clamp(0, 100),
+    lastInteractionAt: DateTime.tryParse(
+      json['lastInteractionAt'] as String? ?? '',
+    ),
   );
 }
 
@@ -466,6 +501,7 @@ class Message {
     this.kind = MessageKind.text,
     this.fromAi = false,
     this.localPath,
+    this.interrupted = false,
   });
 
   final String id;
@@ -477,8 +513,9 @@ class Message {
   final MessageKind kind;
   final bool fromAi;
   final String? localPath;
+  final bool interrupted;
 
-  Message copyWith({String? text}) => Message(
+  Message copyWith({String? text, bool? interrupted}) => Message(
     id: id,
     threadId: threadId,
     senderId: senderId,
@@ -488,6 +525,7 @@ class Message {
     kind: kind,
     fromAi: fromAi,
     localPath: localPath,
+    interrupted: interrupted ?? this.interrupted,
   );
 
   bool get isRenderable =>
@@ -506,6 +544,7 @@ class Message {
     'kind': kind.name,
     'fromAi': fromAi,
     'localPath': localPath,
+    'interrupted': interrupted,
   };
 
   factory Message.fromJson(Map<String, dynamic> json) => Message(
@@ -522,6 +561,7 @@ class Message {
     ),
     fromAi: json['fromAi'] as bool? ?? false,
     localPath: json['localPath'] as String?,
+    interrupted: json['interrupted'] as bool? ?? false,
   );
 }
 
@@ -536,6 +576,10 @@ class ChatThread {
     this.pinned = false,
     this.muted = false,
     this.participantIds = const [],
+    this.contextMemo = '',
+    this.contextMemoUpdatedAt,
+    this.summarizedThroughMessageId,
+    this.suppressedMemoryKeys = const [],
   });
 
   final String id;
@@ -548,6 +592,14 @@ class ChatThread {
   final bool muted;
   final List<String> participantIds;
 
+  /// Rolling, locally persisted narrative memory for this conversation only.
+  final String contextMemo;
+  final DateTime? contextMemoUpdatedAt;
+
+  /// The last message covered by [contextMemo], used for incremental updates.
+  final String? summarizedThroughMessageId;
+  final List<String> suppressedMemoryKeys;
+
   ChatThread copyWith({
     String? title,
     DateTime? updatedAt,
@@ -555,6 +607,12 @@ class ChatThread {
     bool? pinned,
     bool? muted,
     List<String>? participantIds,
+    String? contextMemo,
+    DateTime? contextMemoUpdatedAt,
+    bool clearContextMemoUpdatedAt = false,
+    String? summarizedThroughMessageId,
+    bool clearSummarizedThroughMessageId = false,
+    List<String>? suppressedMemoryKeys,
   }) => ChatThread(
     id: id,
     relationshipId: relationshipId,
@@ -565,6 +623,14 @@ class ChatThread {
     pinned: pinned ?? this.pinned,
     muted: muted ?? this.muted,
     participantIds: participantIds ?? this.participantIds,
+    contextMemo: contextMemo ?? this.contextMemo,
+    contextMemoUpdatedAt: clearContextMemoUpdatedAt
+        ? null
+        : contextMemoUpdatedAt ?? this.contextMemoUpdatedAt,
+    summarizedThroughMessageId: clearSummarizedThroughMessageId
+        ? null
+        : summarizedThroughMessageId ?? this.summarizedThroughMessageId,
+    suppressedMemoryKeys: suppressedMemoryKeys ?? this.suppressedMemoryKeys,
   );
 
   Map<String, dynamic> toJson() => {
@@ -577,6 +643,10 @@ class ChatThread {
     'pinned': pinned,
     'muted': muted,
     'participantIds': participantIds,
+    'contextMemo': contextMemo,
+    'contextMemoUpdatedAt': contextMemoUpdatedAt?.toIso8601String(),
+    'summarizedThroughMessageId': summarizedThroughMessageId,
+    'suppressedMemoryKeys': suppressedMemoryKeys,
   };
 
   factory ChatThread.fromJson(Map<String, dynamic> json) => ChatThread(
@@ -595,6 +665,14 @@ class ChatThread {
     participantIds:
         (json['participantIds'] as List?)?.map((e) => e.toString()).toList() ??
         const [],
+    contextMemo: json['contextMemo'] as String? ?? '',
+    contextMemoUpdatedAt: DateTime.tryParse(
+      json['contextMemoUpdatedAt'] as String? ?? '',
+    ),
+    summarizedThroughMessageId: json['summarizedThroughMessageId'] as String?,
+    suppressedMemoryKeys:
+        (json['suppressedMemoryKeys'] as List?)?.whereType<String>().toList() ??
+        const [],
   );
 }
 
@@ -609,6 +687,7 @@ class MemoryItem {
     this.sourceThreadId,
     this.sourceMessageId,
     this.pinned = false,
+    this.autoGenerated = false,
   });
 
   final String id;
@@ -620,12 +699,15 @@ class MemoryItem {
   final String? sourceThreadId;
   final String? sourceMessageId;
   final bool pinned;
+  final bool autoGenerated;
 
   MemoryItem copyWith({
     MemoryType? type,
     String? title,
     String? content,
     bool? pinned,
+    bool? autoGenerated,
+    String? sourceMessageId,
   }) => MemoryItem(
     id: id,
     relationshipId: relationshipId,
@@ -634,8 +716,9 @@ class MemoryItem {
     content: content ?? this.content,
     createdAt: createdAt,
     sourceThreadId: sourceThreadId,
-    sourceMessageId: sourceMessageId,
+    sourceMessageId: sourceMessageId ?? this.sourceMessageId,
     pinned: pinned ?? this.pinned,
+    autoGenerated: autoGenerated ?? this.autoGenerated,
   );
 
   Map<String, dynamic> toJson() => {
@@ -648,6 +731,7 @@ class MemoryItem {
     'sourceThreadId': sourceThreadId,
     'sourceMessageId': sourceMessageId,
     'pinned': pinned,
+    'autoGenerated': autoGenerated,
   };
 
   factory MemoryItem.fromJson(Map<String, dynamic> json) => MemoryItem(
@@ -661,6 +745,7 @@ class MemoryItem {
     sourceThreadId: json['sourceThreadId'] as String?,
     sourceMessageId: json['sourceMessageId'] as String?,
     pinned: json['pinned'] as bool? ?? false,
+    autoGenerated: json['autoGenerated'] as bool? ?? false,
   );
 }
 

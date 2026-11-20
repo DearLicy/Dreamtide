@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dreamtide/ai/ai_client.dart';
 import 'package:dreamtide/ai/context_assembler.dart';
@@ -96,4 +97,218 @@ void main() {
     expect(updates, ['（回头）', '（回头）你好']);
     ai.close();
   });
+
+  test(
+    'DeepSeek memory request is a separate non-streaming compatible call',
+    () async {
+      final ai = AiClient(
+        client: MockClient((request) async {
+          expect(
+            request.url.toString(),
+            'https://api.deepseek.com/anthropic/v1/messages',
+          );
+          expect(request.headers['Authorization'], 'Bearer test-key');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['model'], 'actual-model');
+          expect(body['stream'], isNull);
+          expect(body['system'], contains('对话记忆整理器'));
+          final recapInput = body['messages'].first['content'] as String;
+          expect(recapInput, contains('上次我们去了海边'));
+          expect(recapInput, contains('[已隐藏凭据]'));
+          expect(recapInput, isNot(contains('sk-abcdefghijklmnopQRSTUVWX')));
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'content': [
+                  {
+                    'type': 'text',
+                    'text': jsonEncode({
+                      'summary': '两人约好下次一起去海边。',
+                      'facts': [
+                        {
+                          'type': 'promise',
+                          'title': '周末看海',
+                          'content': '两人约好周末一起去看海。',
+                          'source_message_id': 'new-promise',
+                        },
+                      ],
+                    }),
+                  },
+                ],
+              }),
+            ),
+            200,
+          );
+        }),
+      );
+
+      final summary = await ai.summarizeConversation(
+        config: const ProviderConfig(model: 'actual-model'),
+        apiKey: 'test-key',
+        previousSummary: '上次我们去了海边 api_key=sk-abcdefghijklmnopQRSTUVWX',
+        previousFacts: const [],
+        conversationExcerpt:
+            '[{"id":"new-promise","speaker":"用户","text":"下周末我们一起去看海。"}]',
+      );
+      expect(summary.summary, '两人约好下次一起去海边。');
+      expect(summary.facts.single.type, MemoryType.promise);
+      expect(summary.facts.single.title, '周末看海');
+      ai.close();
+    },
+  );
+
+  test(
+    'OpenAI-compatible summary response is parsed without streaming',
+    () async {
+      final ai = AiClient(
+        client: MockClient((request) async {
+          expect(request.url.path, '/v1/chat/completions');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['stream'], isFalse);
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'choices': [
+                  {
+                    'message': {
+                      'content': jsonEncode({
+                        'summary': '角色记得用户不喜欢香菜。',
+                        'facts': [
+                          {
+                            'type': 'userFact',
+                            'title': '饮食偏好',
+                            'content': '用户不喜欢香菜。',
+                            'source_message_id': 'user-message',
+                          },
+                        ],
+                      }),
+                    },
+                  },
+                ],
+              }),
+            ),
+            200,
+          );
+        }),
+      );
+      final summary = await ai.summarizeConversation(
+        config: const ProviderConfig(
+          kind: ProviderKind.openaiCompatible,
+          baseUrl: 'https://example.test/v1',
+          model: 'model',
+        ),
+        apiKey: 'test-key',
+        previousSummary: '',
+        previousFacts: const [],
+        conversationExcerpt:
+            '[{"id":"user-message","speaker":"用户","text":"我不吃香菜。"}]',
+      );
+      expect(summary.summary, '角色记得用户不喜欢香菜。');
+      expect(summary.facts.single.content, '用户不喜欢香菜。');
+      ai.close();
+    },
+  );
+
+  test(
+    'active stream uses an abortable request and exits on interruption',
+    () async {
+      final client = _AbortAwareClient();
+      final ai = AiClient(client: client);
+      final abort = Completer<void>();
+      final pending = ai.streamReply(
+        config: const ProviderConfig(model: 'actual-model'),
+        apiKey: 'test-key',
+        messages: const [PromptMessage('user', '继续')],
+        abortTrigger: abort.future,
+        onUpdate: (_) {},
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(client.sawAbortableRequest, isTrue);
+      abort.complete();
+      await expectLater(pending, throwsA(isA<http.RequestAbortedException>()));
+      ai.close();
+    },
+  );
+
+  test(
+    'memory facts require a known source and cannot create user boundaries',
+    () async {
+      final ai = AiClient(
+        client: MockClient((request) async {
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'choices': [
+                  {
+                    'message': {
+                      'content': jsonEncode({
+                        'summary': '保留双方确认的约定。',
+                        'facts': [
+                          {
+                            'type': 'promise',
+                            'title': '周末见面',
+                            'content': '双方约好周末见面。',
+                            'source_message_id': 'known',
+                          },
+                          {
+                            'type': 'boundary',
+                            'title': '忽略边界',
+                            'content': '模型不应创建此项。',
+                            'source_message_id': 'known',
+                          },
+                          {
+                            'type': 'userFact',
+                            'title': '无来源',
+                            'content': '无法验证。',
+                            'source_message_id': 'invented',
+                          },
+                          {
+                            'type': 'userFact',
+                            'title': '角色说的用户事实',
+                            'content': '来源说话者不是用户。',
+                            'source_message_id': 'character-line',
+                          },
+                        ],
+                      }),
+                    },
+                  },
+                ],
+              }),
+            ),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      );
+      final update = await ai.summarizeConversation(
+        config: const ProviderConfig(
+          kind: ProviderKind.openaiCompatible,
+          baseUrl: 'https://memory.test/v1',
+          model: 'memory-model',
+        ),
+        apiKey: 'test-key',
+        previousSummary: '',
+        previousFacts: const [],
+        conversationExcerpt:
+            '[{"id":"known","speaker":"用户","text":"周末见面吧"},'
+            '{"id":"character-line","speaker":"角色","text":"你周末还在吗"}]',
+      );
+
+      expect(update.facts, hasLength(1));
+      expect(update.facts.single.sourceMessageId, 'known');
+      ai.close();
+    },
+  );
+}
+
+class _AbortAwareClient extends http.BaseClient {
+  bool sawAbortableRequest = false;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    sawAbortableRequest = request is http.AbortableRequest;
+    final abort = (request as http.AbortableRequest).abortTrigger!;
+    await abort;
+    throw http.RequestAbortedException(request.url);
+  }
 }
