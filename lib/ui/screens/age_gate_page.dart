@@ -66,7 +66,7 @@ class _AgeGatePageState extends ConsumerState<AgeGatePage> {
                             height: 94,
                             clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(12),
                               boxShadow: DtShadows.floating(dark),
                             ),
                             child: Image.asset(
@@ -97,7 +97,7 @@ class _AgeGatePageState extends ConsumerState<AgeGatePage> {
                           DtSurface(
                             level: DtSurfaceLevel.floating,
                             padding: const EdgeInsets.all(22),
-                            borderRadius: 28,
+                            borderRadius: 12,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -157,7 +157,7 @@ class _AgeGatePageState extends ConsumerState<AgeGatePage> {
                             },
                           ),
                           const SizedBox(height: 10),
-                          TextButton(
+                          DtActionButton(
                             onPressed: () => showDialog<void>(
                               context: context,
                               builder: (context) => AlertDialog(
@@ -166,7 +166,7 @@ class _AgeGatePageState extends ConsumerState<AgeGatePage> {
                                   'Dreamtide 不面向未成年人提供。请关闭应用。',
                                 ),
                                 actions: [
-                                  TextButton(
+                                  DtActionButton(
                                     onPressed: () => Navigator.pop(context),
                                     child: const Text('返回'),
                                   ),

@@ -1,4 +1,6 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -58,7 +60,7 @@ class _MemoryPageState extends ConsumerState<MemoryPage> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
+            child: DtTextField(
               onChanged: (value) => setState(() => _query = value),
               decoration: const InputDecoration(
                 hintText: '搜索固定记忆与共同经历',
@@ -96,7 +98,8 @@ class _MemoryPageState extends ConsumerState<MemoryPage> {
                     icon: Icons.psychology_alt_rounded,
                     title: '还没有记忆',
                     body: '固定称呼、约定、共同经历和边界，角色才能长期保持一致。',
-                    action: FilledButton.icon(
+                    action: DtActionButton.icon(
+                      primary: true,
                       onPressed: () =>
                           _showEditor(context, relation: relationship),
                       icon: const Icon(Icons.add_rounded),
@@ -149,31 +152,30 @@ class _MemoryPageState extends ConsumerState<MemoryPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<MemoryType>(
+                FSelect<MemoryType>(
+                  items: {
+                    for (final item in MemoryType.values) item.label: item,
+                  },
                   initialValue: type,
-                  decoration: const InputDecoration(labelText: '类别'),
-                  items: [
-                    for (final item in MemoryType.values)
-                      DropdownMenuItem(value: item, child: Text(item.label)),
-                  ],
-                  onChanged: (value) {
+                  label: const Text('类别'),
+                  onChange: (value) {
                     if (value != null) setDialogState(() => type = value);
                   },
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                DtTextField(
                   controller: title,
                   decoration: const InputDecoration(labelText: '标题'),
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                DtTextField(
                   controller: content,
                   minLines: 3,
                   maxLines: 7,
                   decoration: const InputDecoration(labelText: '内容'),
                 ),
                 const SizedBox(height: 6),
-                SwitchListTile(
+                DtSwitchRow(
                   value: pinned,
                   onChanged: (value) => setDialogState(() => pinned = value),
                   title: const Text('固定记忆', style: TextStyle(fontSize: 14)),
@@ -187,11 +189,11 @@ class _MemoryPageState extends ConsumerState<MemoryPage> {
             ),
           ),
           actions: [
-            TextButton(
+            DtActionButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('取消'),
             ),
-            FilledButton(
+            DtActionButton.primary(
               onPressed: () {
                 if (title.text.trim().isEmpty && content.text.trim().isEmpty) {
                   return;
@@ -233,11 +235,11 @@ class _MemoryPageState extends ConsumerState<MemoryPage> {
         title: const Text('删除记忆？'),
         content: Text('“${memory.title}”将从这段关系中移除。'),
         actions: [
-          TextButton(
+          DtActionButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('取消'),
           ),
-          FilledButton(
+          DtActionButton.primary(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('删除'),
           ),

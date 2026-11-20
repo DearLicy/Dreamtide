@@ -1,3 +1,4 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -64,7 +65,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
           DtSurface(
             child: Column(
               children: [
-                TextField(
+                DtTextField(
                   controller: _name,
                   onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
@@ -73,7 +74,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _signature,
                   minLines: 2,
                   maxLines: 4,

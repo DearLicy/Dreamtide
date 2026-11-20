@@ -1,3 +1,5 @@
+import '../components/dt_sheet.dart';
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,8 @@ import 'package:intl/intl.dart';
 
 import '../../application/app_controller.dart';
 import '../../domain/models.dart';
+import '../../domain/dialogue.dart';
+import 'package:forui/forui.dart';
 import '../components/dt_avatar.dart';
 import '../components/dt_controls.dart';
 import '../components/dt_motion.dart';
@@ -25,7 +29,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   bool _nearBottom = true;
-  int _lastMessageCount = 0;
+  String _lastContent = '';
+  bool _sending = false;
 
   @override
   void initState() {
@@ -95,13 +100,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             .where((e) => e.threadId == thread.id && e.isRenderable)
             .toList()
           ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    if (messages.length != _lastMessageCount) {
-      _lastMessageCount = messages.length;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_nearBottom || state.generatingThreadId == thread.id) {
-          _jumpToBottom();
-        }
-      });
+    final content = '${messages.length}:${messages.lastOrNull?.text ?? ''}';
+    if (content != _lastContent) {
+      _lastContent = content;
+      if (_nearBottom) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _nearBottom) _jumpToBottom(animated: false);
+        });
+      }
     }
     final dark = Theme.of(context).brightness == Brightness.dark;
 
@@ -216,16 +222,33 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             controller: _textController,
             focusNode: _focusNode,
             generating: state.generatingThreadId == thread.id,
-            onSend: () {
+            onSend: () async {
+              if (_sending) return;
               final text = _textController.text;
               if (text.trim().isEmpty) return;
-              _textController.clear();
-              ref
-                  .read(appControllerProvider.notifier)
-                  .sendMessage(thread.id, text);
-              WidgetsBinding.instance.addPostFrameCallback(
-                (_) => _jumpToBottom(),
+              _sending = true;
+              final controller = ref.read(appControllerProvider.notifier);
+              final future = controller.sendMessage(
+                thread.id,
+                text,
+                onAccepted: () {
+                  if (!mounted) return;
+                  if (_textController.text == text) _textController.clear();
+                  _nearBottom = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _jumpToBottom(animated: false);
+                  });
+                },
               );
+              await future;
+              if (!mounted) return;
+              _sending = false;
+              final after = ref.read(appControllerProvider);
+              if (after.error != null && context.mounted) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(after.error!)));
+              }
             },
             onMore: () => _showMoreActions(context, relationship),
           ),
@@ -250,7 +273,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     Relationship relationship,
     Character character,
   ) {
-    showModalBottomSheet<void>(
+    showDtSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -305,7 +328,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _showMoreActions(BuildContext context, Relationship relationship) {
-    showModalBottomSheet<void>(
+    showDtSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -315,19 +338,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DtSettingRow(
-                icon: Icons.image_outlined,
-                iconColor: DtColors.violet,
-                title: '图片',
-                subtitle: '图片附件将在 V2.0.1 接入本地文件选择',
-                onTap: () => _snack(context, '图片附件接口已预留，当前版本暂未选择文件'),
-              ),
-              DtSettingRow(
-                icon: Icons.photo_camera_outlined,
-                iconColor: DtColors.coral,
-                title: '相机',
-                onTap: () => _snack(context, '相机接入需要原生权限模块'),
-              ),
               DtSettingRow(
                 icon: Icons.movie_filter_outlined,
                 iconColor: DtColors.brand,
@@ -354,19 +364,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  void _snack(BuildContext context, String message) {
-    Navigator.pop(context);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   void _showMessageActions(
     BuildContext context,
     Message message,
     Relationship relationship,
   ) {
-    showModalBottomSheet<void>(
+    showDtSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -418,12 +421,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            DtTextField(
               controller: title,
               decoration: const InputDecoration(labelText: '标题'),
             ),
             const SizedBox(height: 10),
-            TextField(
+            DtTextField(
               controller: content,
               minLines: 3,
               maxLines: 6,
@@ -432,11 +435,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ],
         ),
         actions: [
-          TextButton(
+          DtActionButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('取消'),
           ),
-          FilledButton(
+          DtActionButton.primary(
             onPressed: () {
               ref
                   .read(appControllerProvider.notifier)
@@ -561,156 +564,129 @@ class _MessageBubble extends StatelessWidget {
     required this.owner,
     required this.onLongPress,
   });
-
   final Message message;
   final Character character;
   final OwnerProfile owner;
   final VoidCallback onLongPress;
-
   @override
   Widget build(BuildContext context) {
     if (!message.isRenderable) return const SizedBox.shrink();
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final mine = !message.fromAi;
-    final avatar = mine
-        ? DtAvatar(name: owner.displayName, color: owner.avatarColor, size: 34)
-        : DtAvatar(
-            name: character.name,
-            color: character.avatarColor,
-            size: 34,
-          );
-    final bubble = ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width * 0.73,
-      ),
-      child: DtPressable(
-        onLongPress: onLongPress,
-        semanticLabel: '长按消息操作',
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-          decoration: BoxDecoration(
-            color: mine
-                ? (dark ? const Color(0xFFF4EEE5) : DtColors.ink)
-                : (dark ? DtColors.darkSurface : DtColors.surface),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(20),
-              topRight: const Radius.circular(20),
-              bottomLeft: Radius.circular(mine ? 20 : 6),
-              bottomRight: Radius.circular(mine ? 6 : 20),
+    final segments = mine
+        ? [
+            DialogueSegment(
+              kind: DialogueSegmentKind.speech,
+              text: message.text,
             ),
-            border: mine
-                ? null
-                : Border.all(
-                    color: dark ? DtColors.darkLine : const Color(0xFFECE7DF),
-                    width: 0.8,
-                  ),
-            boxShadow: DtShadows.soft(dark),
-          ),
-          child: Text(
-            message.text.trim(),
-            style: TextStyle(
-              color: mine
-                  ? (dark ? const Color(0xFF17140F) : Colors.white)
-                  : (dark ? const Color(0xFFF0ECE4) : const Color(0xFF25221E)),
-              fontSize: 15,
-              height: 1.55,
-              letterSpacing: 0.05,
-            ),
-          ),
-        ),
-      ),
-    );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: mine
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: mine
-            ? [bubble, const SizedBox(width: 8), avatar]
-            : [avatar, const SizedBox(width: 8), bubble],
-      ),
-    );
-  }
-}
-
-class _TypingIndicator extends StatefulWidget {
-  const _TypingIndicator({required this.character});
-
-  final Character character;
-
-  @override
-  State<_TypingIndicator> createState() => _TypingIndicatorState();
-}
-
-class _TypingIndicatorState extends State<_TypingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1200),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+          ]
+        : DialogueParser.parse(message.text);
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DtAvatar(
-            name: widget.character.name,
-            color: widget.character.avatarColor,
-            size: 34,
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: dark ? DtColors.darkSurface : DtColors.surface,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-                bottomLeft: Radius.circular(6),
-                bottomRight: Radius.circular(20),
+    return Column(
+      children: [
+        for (final segment in segments)
+          if (segment.kind == DialogueSegmentKind.narration)
+            DtPressable(
+              onLongPress: onLongPress,
+              child: Padding(
+                key: const ValueKey('message-narration'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 26,
+                  vertical: 12,
+                ),
+                child: Text(
+                  segment.text,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.65,
+                    color: DtColors.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
-              boxShadow: DtShadows.soft(dark),
-            ),
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                final phase = (_controller.value * 3).floor();
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < 3; i++) ...[
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: (dark ? const Color(0xFFF4EEE5) : DtColors.ink)
-                              .withValues(alpha: phase == i ? 0.95 : 0.32),
-                          shape: BoxShape.circle,
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Row(
+                mainAxisAlignment: mine
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!mine) ...[
+                    DtAvatar(
+                      name: character.name,
+                      color: character.avatarColor,
+                      size: 36,
+                    ),
+                    const SizedBox(width: 9),
+                  ],
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.sizeOf(context).width * .73,
+                      ),
+                      child: DtPressable(
+                        onLongPress: onLongPress,
+                        semanticLabel: '长按消息操作',
+                        child: Container(
+                          key: const ValueKey('message-speech'),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: mine
+                                ? DtColors.violet
+                                : (dark
+                                      ? DtColors.darkSurface
+                                      : DtColors.surface),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            segment.text,
+                            style: TextStyle(
+                              color: mine
+                                  ? Colors.white
+                                  : (dark
+                                        ? const Color(0xFFEEEEF2)
+                                        : DtColors.ink),
+                              fontSize: 16,
+                              height: 1.5,
+                            ),
+                          ),
                         ),
                       ),
-                      if (i != 2) const SizedBox(width: 4),
-                    ],
+                    ),
+                  ),
+                  if (mine) ...[
+                    const SizedBox(width: 9),
+                    DtAvatar(
+                      name: owner.displayName,
+                      color: owner.avatarColor,
+                      size: 36,
+                    ),
                   ],
-                );
-              },
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+      ],
     );
   }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator({required this.character});
+  final Character character;
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 12),
+    child: Text(
+      '正在输入…',
+      style: TextStyle(fontSize: 12, color: DtColors.textSecondary),
+    ),
+  );
 }
 
 class _ChatComposer extends StatelessWidget {
@@ -731,125 +707,55 @@ class _ChatComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: DtSurface(
-            level: DtSurfaceLevel.floating,
-            padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
-            borderRadius: 26,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                IconButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('语音消息将在 V2.1 接入原生录音模块')),
-                    );
-                  },
-                  icon: const Icon(Icons.mic_none_rounded, size: 23),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      hintText: '说点什么……',
-                      isDense: true,
-                      filled: false,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 11,
-                      ),
-                    ),
+    return ColoredBox(
+      color: dark ? DtColors.darkSurface : DtColors.surface,
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: DtTextField(
+                controller: controller,
+                focusNode: focusNode,
+                minLines: 1,
+                maxLines: 5,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration(
+                  hintText: '说点什么……',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
                   ),
                 ),
-                IconButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('表情面板将在后续版本补齐')),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.sentiment_satisfied_alt_rounded,
-                    size: 23,
-                  ),
-                ),
-                if (generating)
-                  const Padding(
-                    padding: EdgeInsets.all(11),
-                    child: SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                else
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: controller,
-                    builder: (context, value, _) {
-                      final empty = value.text.trim().isEmpty;
-                      return Padding(
-                        padding: const EdgeInsets.all(2),
-                        child: DtPressable(
-                          onTap: empty ? onMore : onSend,
-                          semanticLabel: empty ? '更多功能' : '发送',
-                          child: AnimatedContainer(
-                            duration: DtMotion.duration(
-                              context,
-                              DtMotionTokens.fast,
-                            ),
-                            curve: DtMotionTokens.ease,
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: empty
-                                  ? (dark
-                                        ? DtColors.darkElevated
-                                        : DtColors.surfaceMuted)
-                                  : (dark
-                                        ? const Color(0xFFF4EEE5)
-                                        : DtColors.ink),
-                              shape: BoxShape.circle,
-                              boxShadow: empty
-                                  ? const <BoxShadow>[]
-                                  : DtShadows.primary(dark),
-                            ),
-                            child: AnimatedSwitcher(
-                              duration: DtMotion.duration(
-                                context,
-                                DtMotionTokens.fast,
-                              ),
-                              child: Icon(
-                                empty
-                                    ? Icons.add_rounded
-                                    : Icons.arrow_upward_rounded,
-                                key: ValueKey(empty),
-                                size: 21,
-                                color: empty
-                                    ? (dark
-                                          ? const Color(0xFFF0ECE4)
-                                          : DtColors.ink)
-                                    : (dark
-                                          ? const Color(0xFF17140F)
-                                          : Colors.white),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(width: 4),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, _) {
+                final empty = value.text.trim().isEmpty;
+                return DtIconButton(
+                  icon: generating
+                      ? FIcons.ellipsis
+                      : empty
+                      ? FIcons.plus
+                      : FIcons.send,
+                  tooltip: generating
+                      ? '正在回复'
+                      : empty
+                      ? '更多功能'
+                      : '发送',
+                  onTap: generating
+                      ? null
+                      : empty
+                      ? onMore
+                      : onSend,
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

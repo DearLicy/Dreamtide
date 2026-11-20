@@ -33,13 +33,6 @@ class DtAvatar extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [start, end],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: size * 0.2,
-            offset: Offset(0, size * 0.07),
-          ),
-        ],
       ),
       alignment: Alignment.center,
       child: Text(

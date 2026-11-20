@@ -171,7 +171,7 @@ class _HeroCard extends StatelessWidget {
             Color.lerp(color, Colors.black, 0.24) ?? color,
           ],
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.26),

@@ -228,7 +228,7 @@ class _ProfileCard extends StatelessWidget {
                 ? const [DtColors.darkElevated, DtColors.darkSurface]
                 : const [DtColors.surface, DtColors.canvasSoft],
           ),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: dark ? DtColors.darkLine : const Color(0xFFE6E0D7),
           ),
@@ -328,7 +328,7 @@ class _DrawerGroup extends StatelessWidget {
     return DtSurface(
       level: DtSurfaceLevel.raised,
       padding: EdgeInsets.zero,
-      borderRadius: 22,
+      borderRadius: 12,
       child: Column(
         children: [
           for (var i = 0; i < children.length; i++) ...[

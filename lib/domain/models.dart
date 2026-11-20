@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dialogue.dart';
 
 enum ContentLevel {
   sfw('SFW', '日常与恋爱'),
@@ -489,7 +490,11 @@ class Message {
     localPath: localPath,
   );
 
-  bool get isRenderable => text.trim().isNotEmpty || localPath != null;
+  bool get isRenderable =>
+      (localPath?.trim().isNotEmpty ?? false) ||
+      (fromAi
+          ? DialogueParser.parse(text).isNotEmpty
+          : text.replaceAll(RegExp(r'[\s\u200B-\u200D\uFEFF]'), '').isNotEmpty);
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -763,9 +768,10 @@ class Moment {
 
 class ProviderConfig {
   const ProviderConfig({
-    this.kind = ProviderKind.openaiCompatible,
-    this.baseUrl = 'https://api.openai.com/v1',
-    this.model = 'gpt-4.1-mini',
+    this.kind = ProviderKind.anthropic,
+    this.baseUrl = 'https://api.deepseek.com',
+    this.model = '',
+    this.models = const [],
     this.rememberKey = false,
   });
 
@@ -773,16 +779,19 @@ class ProviderConfig {
   final String baseUrl;
   final String model;
   final bool rememberKey;
+  final List<String> models;
 
   ProviderConfig copyWith({
     ProviderKind? kind,
     String? baseUrl,
     String? model,
+    List<String>? models,
     bool? rememberKey,
   }) => ProviderConfig(
     kind: kind ?? this.kind,
     baseUrl: baseUrl ?? this.baseUrl,
     model: model ?? this.model,
+    models: models ?? this.models,
     rememberKey: rememberKey ?? this.rememberKey,
   );
 
@@ -790,16 +799,18 @@ class ProviderConfig {
     'kind': kind.name,
     'baseUrl': baseUrl,
     'model': model,
+    'models': models,
     'rememberKey': rememberKey,
   };
 
   factory ProviderConfig.fromJson(Map<String, dynamic> json) => ProviderConfig(
     kind: ProviderKind.values.firstWhere(
       (e) => e.name == json['kind'],
-      orElse: () => ProviderKind.openaiCompatible,
+      orElse: () => ProviderKind.anthropic,
     ),
-    baseUrl: json['baseUrl'] as String? ?? 'https://api.openai.com/v1',
-    model: json['model'] as String? ?? 'gpt-4.1-mini',
+    baseUrl: json['baseUrl'] as String? ?? 'https://api.deepseek.com',
+    model: json['model'] as String? ?? '',
+    models: (json['models'] as List?)?.whereType<String>().toList() ?? const [],
     rememberKey: json['rememberKey'] as bool? ?? false,
   );
 }
@@ -809,7 +820,7 @@ class AppSettings {
     this.themeMode = AppThemeMode.system,
     this.ageConfirmed = false,
     this.onboardingComplete = false,
-    this.currentPersonaId = 'persona_lin',
+    this.currentPersonaId = '',
     this.provider = const ProviderConfig(),
     this.contentCeiling = ContentLevel.mature,
   });
@@ -853,7 +864,7 @@ class AppSettings {
     ),
     ageConfirmed: json['ageConfirmed'] as bool? ?? false,
     onboardingComplete: json['onboardingComplete'] as bool? ?? false,
-    currentPersonaId: json['currentPersonaId'] as String? ?? 'persona_lin',
+    currentPersonaId: json['currentPersonaId'] as String? ?? '',
     provider: ProviderConfig.fromJson(
       Map<String, dynamic>.from(json['provider'] as Map? ?? const {}),
     ),

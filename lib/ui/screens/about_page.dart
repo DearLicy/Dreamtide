@@ -12,7 +12,7 @@ class AboutPage extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return DtDetailPage(
       title: '关于 Dreamtide',
-      subtitle: 'V2.0.0 · 本地优先 AI 梦境恋爱 IM',
+      subtitle: 'V2.0.1 · 本地优先 AI 梦境恋爱 IM',
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -24,7 +24,7 @@ class AboutPage extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: [DtColors.brand, DtColors.violet, Color(0xFFC184C7)],
               ),
-              borderRadius: BorderRadius.circular(26),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,

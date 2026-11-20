@@ -1,3 +1,4 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -67,27 +68,27 @@ class _ScenePageState extends ConsumerState<ScenePage> {
           DtSurface(
             child: Column(
               children: [
-                TextField(
+                DtTextField(
                   controller: _location,
                   decoration: const InputDecoration(labelText: '地点'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _time,
                   decoration: const InputDecoration(labelText: '时间'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _outfit,
                   decoration: const InputDecoration(labelText: '穿着'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _mood,
                   decoration: const InputDecoration(labelText: '氛围'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _notes,
                   minLines: 4,
                   maxLines: 8,

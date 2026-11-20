@@ -1,3 +1,5 @@
+import '../components/dt_sheet.dart';
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,9 +34,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       });
     final filtered = threads.where((thread) {
       if (_query.trim().isEmpty) return true;
-      final character = data.characterForRelationship(
-        data.relationshipForThread(thread) ?? data.relationships.first,
-      );
+      final relationship = data.relationshipForThread(thread);
+      final character = relationship == null
+          ? null
+          : data.characterForRelationship(relationship);
       return thread.title.toLowerCase().contains(_query.toLowerCase()) ||
           (character?.intro.toLowerCase().contains(_query.toLowerCase()) ??
               false);
@@ -52,8 +55,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
               child: DtPageHeader(
                 padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
                 leading: _OwnerAvatarButton(owner: data.owner),
-                title: data.owner.displayName,
-                subtitle: '${data.owner.status} · 今天也要记得照顾自己',
+                title: '消息',
+
                 actions: [
                   DtIconButton(
                     icon: Icons.add_rounded,
@@ -70,7 +73,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
               index: 1,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-                child: TextField(
+                child: DtTextField(
                   onChanged: (value) => setState(() => _query = value),
                   textInputAction: TextInputAction.search,
                   decoration: const InputDecoration(
@@ -83,31 +86,26 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: DtStagger(
-              index: 2,
-              child: _PresenceStrip(
-                count: data.relationships.length,
-                onTap: () => context.go('/contacts'),
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
           if (filtered.isEmpty)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               hasScrollBody: false,
               child: DtEmptyState(
                 icon: Icons.nights_stay_rounded,
                 title: '还没有找到对话',
-                body: '创建角色，或换一个关键词再试试。',
+                body: '创建自己的梦设和角色，开始第一段对话。',
+                action: DtButton(
+                  label: '创建角色',
+                  onPressed: () => context.push('/character/new'),
+                ),
               ),
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+              padding: const EdgeInsets.only(bottom: 24),
               sliver: SliverList.separated(
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                separatorBuilder: (_, __) =>
+                    const Divider(height: .5, indent: 78),
                 itemBuilder: (context, index) {
                   final thread = filtered[index];
                   final relationship = data.relationshipForThread(thread);
@@ -154,7 +152,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   }
 
   void _showQuickActions(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet<void>(
+    showDtSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -181,17 +179,6 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                   context.push('/character/new');
                 },
               ),
-              DtSettingRow(
-                icon: Icons.groups_2_outlined,
-                title: '创建群聊',
-                subtitle: '多角色群聊将在 V2.2 开放',
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('群聊将在 V2.2 开放')));
-                },
-              ),
             ],
           ),
         ),
@@ -205,7 +192,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
     ChatThread thread,
   ) {
     final controller = ref.read(appControllerProvider.notifier);
-    showModalBottomSheet<void>(
+    showDtSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -260,69 +247,6 @@ class _OwnerAvatarButton extends StatelessWidget {
   }
 }
 
-class _PresenceStrip extends StatelessWidget {
-  const _PresenceStrip({required this.count, required this.onTap});
-
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: DtSurface(
-        level: DtSurfaceLevel.raised,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        borderRadius: 20,
-        onTap: onTap,
-        child: Row(
-          children: [
-            Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(
-                color: const Color(0xFF42C58A),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF42C58A).withValues(alpha: 0.3),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '$count 段关系正在等待你的回应',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Text(
-              '查看角色',
-              style: TextStyle(
-                color: dark ? const Color(0xFFE6DED0) : DtColors.ink,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(width: 2),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: dark ? const Color(0xFFB9B1A3) : DtColors.textSecondary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ConversationTile extends StatelessWidget {
   const _ConversationTile({
     required this.thread,
@@ -349,10 +273,10 @@ class _ConversationTile extends StatelessWidget {
     final subtitle = lastMessage?.text.replaceAll(RegExp(r'\s+'), ' ').trim();
     return DtSurface(
       level: thread.pinned ? DtSurfaceLevel.floating : DtSurfaceLevel.raised,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      borderRadius: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      borderRadius: 0,
       backgroundColor: thread.pinned
-          ? (dark ? const Color(0xFF24211C) : const Color(0xFFFFFCF5))
+          ? (dark ? const Color(0xFF24211C) : DtColors.surfaceMuted)
           : null,
       onTap: onTap,
       onLongPress: onLongPress,
@@ -454,41 +378,6 @@ class _ConversationTile extends StatelessWidget {
                               ? const Color(0xFF949DB1)
                               : const Color(0xFF7B8396),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: DtColors.violet.withValues(
-                          alpha: dark ? 0.16 : 0.08,
-                        ),
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      child: Text(
-                        relationship.stage,
-                        style: const TextStyle(
-                          color: DtColors.violet,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '心动 ${relationship.metrics['心动'] ?? 0}',
-                      style: TextStyle(
-                        color: dark
-                            ? const Color(0xFF727B90)
-                            : const Color(0xFF9AA2B2),
-                        fontSize: 9.5,
                       ),
                     ),
                   ],

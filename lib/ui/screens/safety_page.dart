@@ -70,15 +70,15 @@ class SafetyPage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                SegmentedButton<ContentLevel>(
-                  segments: [
-                    for (final level in ContentLevel.values)
-                      ButtonSegment(value: level, label: Text(level.label)),
+                DtSegmentedControl(
+                  labels: [
+                    for (final level in ContentLevel.values) level.label,
                   ],
-                  selected: {state.data.settings.contentCeiling},
-                  onSelectionChanged: (value) =>
-                      controller.setContentCeiling(value.first),
-                  showSelectedIcon: false,
+                  index: ContentLevel.values.indexOf(
+                    state.data.settings.contentCeiling,
+                  ),
+                  onChanged: (index) =>
+                      controller.setContentCeiling(ContentLevel.values[index]),
                 ),
               ],
             ),

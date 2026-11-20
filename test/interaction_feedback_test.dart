@@ -30,6 +30,7 @@ void main() {
     final gesture = await tester.startGesture(
       tester.getCenter(find.byKey(const ValueKey('press-content'))),
     );
+    await tester.pump(const Duration(milliseconds: 10));
     await tester.pump();
 
     final pressed = tester.widget<AnimatedOpacity>(
@@ -48,6 +49,7 @@ void main() {
     );
 
     await gesture.up();
+    await tester.pump(const Duration(milliseconds: 10));
     await tester.pump();
     final released = tester.widget<AnimatedOpacity>(
       find.descendant(

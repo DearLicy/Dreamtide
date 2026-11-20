@@ -1,3 +1,4 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -72,7 +73,7 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
           DtSurface(
             child: Column(
               children: [
-                TextField(
+                DtTextField(
                   controller: _name,
                   decoration: const InputDecoration(labelText: '姓名'),
                 ),
@@ -80,7 +81,7 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: DtTextField(
                         controller: _age,
                         decoration: const InputDecoration(
                           labelText: '年龄（必须成年）',
@@ -89,7 +90,7 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: TextField(
+                      child: DtTextField(
                         controller: _pronouns,
                         decoration: const InputDecoration(labelText: '称呼'),
                       ),
@@ -97,28 +98,28 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _appearance,
                   minLines: 2,
                   maxLines: 4,
                   decoration: const InputDecoration(labelText: '外貌'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _personality,
                   minLines: 2,
                   maxLines: 4,
                   decoration: const InputDecoration(labelText: '性格'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _background,
                   minLines: 3,
                   maxLines: 6,
                   decoration: const InputDecoration(labelText: '背景与世界观身份'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _preferences,
                   minLines: 2,
                   maxLines: 5,

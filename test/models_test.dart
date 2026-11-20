@@ -1,4 +1,4 @@
-import 'package:dreamtide/data/seed_data.dart';
+import 'fixtures/sample_data.dart';
 import 'package:dreamtide/domain/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 

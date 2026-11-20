@@ -1,3 +1,4 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -101,7 +102,7 @@ class _ConsentPageState extends ConsumerState<ConsentPage> {
           DtSurface(
             child: Column(
               children: [
-                TextField(
+                DtTextField(
                   controller: _allowed,
                   decoration: const InputDecoration(
                     labelText: '允许主题',
@@ -109,7 +110,7 @@ class _ConsentPageState extends ConsumerState<ConsentPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _blocked,
                   minLines: 2,
                   maxLines: 4,
@@ -119,7 +120,7 @@ class _ConsentPageState extends ConsumerState<ConsentPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _safeWord,
                   decoration: const InputDecoration(
                     labelText: '安全词',
@@ -132,7 +133,7 @@ class _ConsentPageState extends ConsumerState<ConsentPage> {
           const SizedBox(height: 12),
           DtSurface(
             padding: EdgeInsets.zero,
-            child: SwitchListTile(
+            child: DtSwitchRow(
               value: _paused,
               onChanged: (value) => setState(() => _paused = value),
               title: const Text(

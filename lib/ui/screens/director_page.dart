@@ -1,4 +1,6 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/app_controller.dart';
@@ -78,16 +80,11 @@ class _DirectorPageState extends ConsumerState<DirectorPage> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 12),
-                SegmentedButton<Pacing>(
-                  segments: const [
-                    ButtonSegment(value: Pacing.tender, label: Text('慢热')),
-                    ButtonSegment(value: Pacing.normal, label: Text('自然')),
-                    ButtonSegment(value: Pacing.intense, label: Text('强推进')),
-                  ],
-                  selected: {_pacing},
-                  onSelectionChanged: (value) =>
-                      setState(() => _pacing = value.first),
-                  showSelectedIcon: false,
+                DtSegmentedControl(
+                  labels: const ['慢热', '自然', '强推进'],
+                  index: Pacing.values.indexOf(_pacing),
+                  onChanged: (index) =>
+                      setState(() => _pacing = Pacing.values[index]),
                 ),
               ],
             ),
@@ -129,7 +126,7 @@ class _DirectorPageState extends ConsumerState<DirectorPage> {
           ),
           const SizedBox(height: 12),
           DtSurface(
-            child: TextField(
+            child: DtTextField(
               controller: _instructions,
               minLines: 4,
               maxLines: 8,
@@ -202,7 +199,11 @@ class _SliderRow extends StatelessWidget {
             ),
           ],
         ),
-        Slider(value: value, onChanged: onChanged),
+        FSlider(
+          controller: null,
+          initialSelection: FSliderSelection(max: value),
+          onChange: (selection) => onChanged(selection.offset.max),
+        ),
         Text(
           hint,
           style: TextStyle(

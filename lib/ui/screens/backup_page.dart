@@ -1,6 +1,8 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../application/app_controller.dart';
 import '../components/dt_controls.dart';
@@ -50,7 +52,7 @@ class BackupPage extends ConsumerWidget {
                 DtSettingRow(
                   icon: Icons.refresh_rounded,
                   iconColor: DtColors.coral,
-                  title: '重置为演示数据',
+                  title: '清空本地数据',
                   subtitle: '清空当前 V2 数据',
                   onTap: () => _confirmReset(context, controller),
                 ),
@@ -93,7 +95,7 @@ class BackupPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('从 JSON 恢复'),
-        content: TextField(
+        content: DtTextField(
           controller: controller,
           minLines: 8,
           maxLines: 16,
@@ -102,11 +104,11 @@ class BackupPage extends ConsumerWidget {
           ),
         ),
         actions: [
-          TextButton(
+          DtActionButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('取消'),
           ),
-          FilledButton(
+          DtActionButton.primary(
             onPressed: () async {
               try {
                 await ref
@@ -141,19 +143,22 @@ class BackupPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('重置全部 V2 数据？'),
-        content: const Text('当前角色、关系、消息、记忆与动态都会被清空，并恢复演示数据。'),
+        content: const Text('当前角色、关系、消息、记忆与动态都会被清空，并恢复为空白状态。'),
         actions: [
-          TextButton(
+          DtActionButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('取消'),
           ),
-          FilledButton(
+          DtActionButton.primary(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('重置'),
           ),
         ],
       ),
     );
-    if (ok == true) await controller.resetDemo();
+    if (ok == true) {
+      if (context.mounted) context.go('/messages');
+      await controller.resetData();
+    }
   }
 }

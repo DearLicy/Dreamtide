@@ -1,4 +1,4 @@
-import '../domain/models.dart';
+import 'package:dreamtide/domain/models.dart';
 
 AppData buildSeedData() {
   final now = DateTime.now();

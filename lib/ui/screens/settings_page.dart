@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -37,7 +38,7 @@ class SettingsPage extends ConsumerWidget {
                   icon: Icons.hub_outlined,
                   title: '模型与供应商',
                   subtitle:
-                      '${settings.provider.model} · ${state.hasApiKey ? '已配置密钥' : '演示模式'}',
+                      '${settings.provider.model} · ${state.hasApiKey ? '已配置密钥' : '未配置'}',
                   onTap: () => context.push('/provider'),
                 ),
                 const Divider(indent: 62),
@@ -64,26 +65,19 @@ class SettingsPage extends ConsumerWidget {
                     AppThemeMode.light => '浅色',
                     AppThemeMode.dark => '深色',
                   },
-                  trailing: DropdownButton<AppThemeMode>(
-                    value: settings.themeMode,
-                    underline: const SizedBox.shrink(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: AppThemeMode.system,
-                        child: Text('系统'),
-                      ),
-                      DropdownMenuItem(
-                        value: AppThemeMode.light,
-                        child: Text('浅色'),
-                      ),
-                      DropdownMenuItem(
-                        value: AppThemeMode.dark,
-                        child: Text('深色'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) controller.setTheme(value);
-                    },
+                  trailing: SizedBox(
+                    width: 105,
+                    child: FSelect<AppThemeMode>(
+                      items: const {
+                        '系统': AppThemeMode.system,
+                        '浅色': AppThemeMode.light,
+                        '深色': AppThemeMode.dark,
+                      },
+                      initialValue: settings.themeMode,
+                      onChange: (value) {
+                        if (value != null) controller.setTheme(value);
+                      },
+                    ),
                   ),
                 ),
                 const Divider(indent: 62),
@@ -99,7 +93,7 @@ class SettingsPage extends ConsumerWidget {
                   icon: Icons.backup_outlined,
                   iconColor: DtColors.mint,
                   title: '数据与备份',
-                  subtitle: 'JSON 导出、恢复与演示重置',
+                  subtitle: 'JSON 导出、恢复与数据清理',
                   onTap: () => context.push('/backup'),
                 ),
               ],

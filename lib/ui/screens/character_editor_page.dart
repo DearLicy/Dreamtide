@@ -1,3 +1,4 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -65,6 +66,21 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final data = ref.watch(appControllerProvider).data;
+    if (_existingId == null && data.personas.isEmpty) {
+      return DtDetailPage(
+        title: '创建角色',
+        child: DtEmptyState(
+          icon: Icons.person_outline,
+          title: '先创建你的梦设',
+          body: '梦设代表这段关系中的你。创建后即可继续设计角色。',
+          action: DtButton(
+            label: '创建梦设',
+            onPressed: () => context.push('/persona/new'),
+          ),
+        ),
+      );
+    }
     return DtDetailPage(
       title: _existingId == null ? '创建角色' : '编辑角色',
       subtitle: '角色必须是明确成年人，并保持稳定人设与边界',
@@ -74,7 +90,7 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
           DtSurface(
             child: Column(
               children: [
-                TextField(
+                DtTextField(
                   controller: _name,
                   decoration: const InputDecoration(labelText: '角色名'),
                 ),
@@ -82,7 +98,7 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: DtTextField(
                         controller: _handle,
                         decoration: const InputDecoration(
                           labelText: '用户名',
@@ -92,7 +108,7 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: TextField(
+                      child: DtTextField(
                         controller: _age,
                         decoration: const InputDecoration(labelText: '年龄'),
                       ),
@@ -100,14 +116,14 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _intro,
                   minLines: 2,
                   maxLines: 4,
                   decoration: const InputDecoration(labelText: '公开简介'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _persona,
                   minLines: 5,
                   maxLines: 10,
@@ -117,14 +133,14 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _greeting,
                   minLines: 3,
                   maxLines: 6,
                   decoration: const InputDecoration(labelText: '初次问候'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                DtTextField(
                   controller: _tags,
                   decoration: const InputDecoration(
                     labelText: '标签',
@@ -138,6 +154,12 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
           DtButton(
             label: _existingId == null ? '创建并开始对话' : '保存角色',
             onPressed: () {
+              if (_name.text.trim().isEmpty) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('请填写角色名')));
+                return;
+              }
               final controller = ref.read(appControllerProvider.notifier);
               final id = _existingId ?? 'char_${const Uuid().v4()}';
               final character = Character(
@@ -149,9 +171,7 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                 age: _age.text.trim().isEmpty ? '成年' : _age.text.trim(),
                 intro: _intro.text.trim(),
                 persona: _persona.text.trim(),
-                greeting: _greeting.text.trim().isEmpty
-                    ? '我们终于见面了。'
-                    : _greeting.text.trim(),
+                greeting: _greeting.text.trim(),
                 avatarColor: _color,
                 tags: _tags.text
                     .split(RegExp(r'[、,，]'))
@@ -163,10 +183,7 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                 final thread = controller.addCharacterWithRelationship(
                   character,
                 );
-                context.pushReplacement('/character/$id');
-                Future<void>.delayed(const Duration(milliseconds: 50), () {
-                  if (context.mounted) context.push('/chat/${thread.id}');
-                });
+                context.pushReplacement('/chat/${thread.id}');
               } else {
                 controller.upsertCharacter(character);
                 Navigator.pop(context);

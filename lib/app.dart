@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,6 +26,7 @@ class DreamtideApp extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         theme: DtTheme.light(),
         darkTheme: DtTheme.dark(),
+        builder: _foruiBuilder,
         home: const _LoadingPage(),
       );
     }
@@ -38,10 +40,12 @@ class DreamtideApp extends ConsumerWidget {
         locale: const Locale('zh', 'CN'),
         supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
         localizationsDelegates: const [
+          FLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
+        builder: _foruiBuilder,
         home: const AgeGatePage(),
       );
     }
@@ -56,6 +60,7 @@ class DreamtideApp extends ConsumerWidget {
       locale: const Locale('zh', 'CN'),
       supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
       localizationsDelegates: const [
+        FLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -69,7 +74,7 @@ class DreamtideApp extends ConsumerWidget {
               maxScaleFactor: 1.15,
             ),
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: _foruiBuilder(context, child),
         );
         if (!kIsWeb || media.size.width < 720) return content;
 
@@ -83,8 +88,8 @@ class DreamtideApp extends ConsumerWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: dark
-                  ? const [Color(0xFF0C0B09), Color(0xFF171510)]
-                  : const [Color(0xFFE9E4DB), Color(0xFFF8F5EF)],
+                  ? const [Color(0xFF111318), Color(0xFF191C23)]
+                  : const [Color(0xFFE9EBF0), Color(0xFFF5F6F9)],
             ),
           ),
           child: Center(
@@ -94,13 +99,13 @@ class DreamtideApp extends ConsumerWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(
-                    verticalInset == 0 ? 0 : 28,
+                    verticalInset == 0 ? 0 : 12,
                   ),
                   boxShadow: DtShadows.floating(dark),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(
-                    verticalInset == 0 ? 0 : 28,
+                    verticalInset == 0 ? 0 : 12,
                   ),
                   child: MediaQuery(
                     data: media.copyWith(
@@ -110,7 +115,7 @@ class DreamtideApp extends ConsumerWidget {
                         maxScaleFactor: 1.15,
                       ),
                     ),
-                    child: content,
+                    child: _foruiBuilder(context, child),
                   ),
                 ),
               ),
@@ -121,6 +126,13 @@ class DreamtideApp extends ConsumerWidget {
     );
   }
 }
+
+Widget _foruiBuilder(BuildContext context, Widget? child) => FTheme(
+  data: Theme.of(context).brightness == Brightness.dark
+      ? FThemes.zinc.dark
+      : FThemes.zinc.light,
+  child: child ?? const SizedBox.shrink(),
+);
 
 class _LoadingPage extends StatelessWidget {
   const _LoadingPage();

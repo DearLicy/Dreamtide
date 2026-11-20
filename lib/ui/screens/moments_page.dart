@@ -1,3 +1,5 @@
+import '../components/dt_sheet.dart';
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -52,15 +54,19 @@ class MomentsPage extends ConsumerWidget {
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: DtStagger(
-              index: 1,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                child: _SpaceHero(onTap: () => _showComposer(context, ref)),
+          if (data.moments.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: DtEmptyState(
+                icon: Icons.chat_bubble_outline,
+                title: '还没有动态',
+                body: '在梦境空间留下属于你的第一条记录。',
+                action: DtButton(
+                  label: '发布动态',
+                  onPressed: () => _showComposer(context, ref),
+                ),
               ),
             ),
-          ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 30),
             sliver: SliverList.separated(
@@ -91,7 +97,7 @@ class MomentsPage extends ConsumerWidget {
 
   void _showComposer(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
-    showModalBottomSheet<void>(
+    showDtSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -113,7 +119,7 @@ class MomentsPage extends ConsumerWidget {
             const SizedBox(height: 6),
             const Text('图片与视频将在后续版本开放。', style: TextStyle(fontSize: 12)),
             const SizedBox(height: 14),
-            TextField(
+            DtTextField(
               controller: controller,
               autofocus: true,
               minLines: 4,
@@ -139,7 +145,7 @@ class MomentsPage extends ConsumerWidget {
 
   void _showCommentSheet(BuildContext context, WidgetRef ref, Moment moment) {
     final controller = TextEditingController();
-    showModalBottomSheet<void>(
+    showDtSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -206,7 +212,7 @@ class MomentsPage extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
+                    child: DtTextField(
                       controller: controller,
                       autofocus: true,
                       decoration: const InputDecoration(hintText: '写下评论'),
@@ -234,90 +240,6 @@ class MomentsPage extends ConsumerWidget {
   }
 }
 
-class _SpaceHero extends StatelessWidget {
-  const _SpaceHero({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return DtSurface(
-      level: DtSurfaceLevel.floating,
-      padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
-      borderRadius: 22,
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [DtColors.brand, DtColors.violet],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: Colors.white,
-              size: 19,
-            ),
-          ),
-          const SizedBox(width: 11),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '梦境空间',
-                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  '只有你和角色们能看到的空间',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF8A93A4)),
-                ),
-              ],
-            ),
-          ),
-          DtPressable(
-            onTap: onTap,
-            semanticLabel: '发布到梦境空间',
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-              decoration: BoxDecoration(
-                color: dark ? const Color(0xFF312C24) : DtColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(99),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.add_rounded,
-                    color: dark ? const Color(0xFFF2ECE2) : DtColors.ink,
-                    size: 15,
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    '发布',
-                    style: TextStyle(
-                      color: dark ? const Color(0xFFF2ECE2) : DtColors.ink,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MomentCard extends StatelessWidget {
   const _MomentCard({
     required this.moment,
@@ -339,7 +261,7 @@ class _MomentCard extends StatelessWidget {
     return DtSurface(
       level: DtSurfaceLevel.raised,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      borderRadius: 22,
+      borderRadius: 12,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

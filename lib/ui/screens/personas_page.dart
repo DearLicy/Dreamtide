@@ -122,7 +122,7 @@ class _PersonaCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: dark ? DtColors.darkSurface : DtColors.surface,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected
                 ? DtColors.violet.withValues(alpha: 0.75)
@@ -204,13 +204,10 @@ class _PersonaCard extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      TextButton.icon(
+                      DtActionButton.icon(
                         onPressed: onEdit,
                         icon: const Icon(Icons.edit_outlined, size: 15),
                         label: const Text('编辑'),
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                        ),
                       ),
                     ],
                   ),

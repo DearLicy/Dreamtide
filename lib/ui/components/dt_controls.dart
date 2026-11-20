@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forui/forui.dart';
 
 import '../theme/dt_theme.dart';
 import 'dt_motion.dart';
@@ -189,8 +190,11 @@ class DtButton extends StatelessWidget {
         onPressed != null &&
         status != DtButtonStatus.loading &&
         status != DtButtonStatus.success;
-    final (background, foreground, border) = _colors(dark, enabled);
-    final height = compact ? 44.0 : 54.0;
+    final (background, foreground, border) = _colors(
+      dark,
+      ready && onPressed != null,
+    );
+    final height = compact ? 44.0 : 48.0;
     final displayText = switch (status) {
       DtButtonStatus.loading => loadingText ?? '正在处理…',
       DtButtonStatus.success => successText ?? '已完成',
@@ -204,7 +208,7 @@ class DtButton extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 22),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(DtRadii.pill),
+        borderRadius: BorderRadius.circular(DtRadii.control),
         border: border == null ? null : Border.all(color: border),
         boxShadow: enabled && variant == DtButtonVariant.primary
             ? DtShadows.primary(dark)
@@ -253,31 +257,39 @@ class DtButton extends StatelessWidget {
         ),
       ),
     );
-    return DtPressable(
-      onTap: enabled ? onPressed : null,
-      enabled: enabled,
-      haptic: haptic,
-      semanticLabel: displayText,
-      child: content,
+    return FButton.raw(
+      onPress: enabled ? onPressed : null,
+      style: (style) => style.copyWith(
+        decoration: FWidgetStateMap.all(BoxDecoration()),
+        tappableStyle: (style) => style.copyWith(
+          motion: FTappableMotion.none.call,
+          pressedEnterDuration: Duration.zero,
+        ),
+      ),
+      child: Builder(
+        builder: (context) => AnimatedOpacity(
+          opacity: FButtonData.of(context).states.contains(WidgetState.pressed)
+              ? .68
+              : 1,
+          duration: const Duration(milliseconds: 90),
+          child: content,
+        ),
+      ),
     );
   }
 
   (Color, Color, Color?) _colors(bool dark, bool enabled) {
     if (!enabled) {
-      final muted = dark ? const Color(0xFF2A2722) : const Color(0xFFE6E1D8);
-      final text = dark ? const Color(0xFF7F786E) : const Color(0xFF9A9389);
+      final muted = dark ? const Color(0xFF292B31) : const Color(0xFFE8E9EE);
+      final text = dark ? const Color(0xFF7B7E87) : const Color(0xFF9699A2);
       return (muted, text, null);
     }
     return switch (variant) {
-      DtButtonVariant.primary => (
-        dark ? const Color(0xFFF5F0E7) : DtColors.ink,
-        dark ? const Color(0xFF17140F) : Colors.white,
-        null,
-      ),
+      DtButtonVariant.primary => (DtColors.violet, Colors.white, null),
       DtButtonVariant.secondary => (
         dark ? DtColors.darkElevated : DtColors.surface,
         dark ? const Color(0xFFF0ECE4) : DtColors.ink,
-        dark ? DtColors.darkLine : const Color(0xFFDDD7CE),
+        dark ? DtColors.darkLine : const Color(0xFFE1E3EA),
       ),
       DtButtonVariant.ghost => (
         Colors.transparent,
@@ -317,7 +329,7 @@ class DtSegmentedControl extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: dark ? DtColors.darkElevated : DtColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(DtRadii.pill),
+        borderRadius: BorderRadius.circular(DtRadii.control),
       ),
       child: Stack(
         fit: StackFit.expand,
@@ -332,7 +344,7 @@ class DtSegmentedControl extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: dark ? const Color(0xFFF2ECE2) : DtColors.surface,
-                  borderRadius: BorderRadius.circular(DtRadii.pill),
+                  borderRadius: BorderRadius.circular(DtRadii.control),
                   boxShadow: DtShadows.soft(dark),
                 ),
               ),
@@ -490,8 +502,8 @@ class DtPageHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -577,4 +589,106 @@ class DtEmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Compact Forui action for toolbars and confirmation dialogs.
+class DtActionButton extends StatelessWidget {
+  const DtActionButton({
+    super.key,
+    required this.onPressed,
+    required this.child,
+    this.primary = false,
+  }) : icon = null;
+  const DtActionButton.primary({
+    super.key,
+    required this.onPressed,
+    required this.child,
+  }) : primary = true,
+       icon = null;
+  const DtActionButton.icon({
+    super.key,
+    required this.onPressed,
+    required Widget label,
+    required this.icon,
+    this.primary = false,
+  }) : child = label;
+  final VoidCallback? onPressed;
+  final Widget child;
+  final Widget? icon;
+  final bool primary;
+  @override
+  Widget build(BuildContext context) => FButton.raw(
+    onPress: onPressed,
+    style: (s) => s.copyWith(
+      decoration: FWidgetStateMap.all(const BoxDecoration()),
+      tappableStyle: (t) => t.copyWith(motion: FTappableMotion.none.call),
+    ),
+    child: Builder(
+      builder: (context) => AnimatedOpacity(
+        opacity: FButtonData.of(context).states.contains(WidgetState.pressed)
+            ? .68
+            : 1,
+        duration: const Duration(milliseconds: 90),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: primary ? DtColors.violet : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(
+              color: primary ? Colors.white : DtColors.brand,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[icon!, const SizedBox(width: 6)],
+                child,
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class DtSwitchRow extends StatelessWidget {
+  const DtSwitchRow({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    required this.title,
+    this.subtitle,
+    this.secondary,
+    this.contentPadding = const EdgeInsets.all(12),
+  });
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Widget title;
+  final Widget? subtitle, secondary;
+  final EdgeInsetsGeometry contentPadding;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: contentPadding,
+    child: Row(
+      children: [
+        if (secondary != null) ...[secondary!, const SizedBox(width: 12)],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              title,
+              if (subtitle != null) ...[const SizedBox(height: 4), subtitle!],
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        FSwitch(value: value, onChange: onChanged),
+      ],
+    ),
+  );
 }

@@ -20,12 +20,65 @@ class AiClient {
 
   final http.Client _client;
 
+  /// Model ids and labels come only from the provider's authenticated catalog.
+  Future<List<ProviderModel>> fetchModels({
+    required ProviderConfig config,
+    required String apiKey,
+  }) async {
+    if (apiKey.trim().isEmpty) throw const AiClientException('请先填写 API Key');
+    final base = _baseUri(config.baseUrl);
+    final official = base.host.toLowerCase() == 'api.deepseek.com';
+    final uri = official
+        ? base.replace(path: '/models')
+        : _endpoint(config.baseUrl, '/models');
+    final response = await _client
+        .get(
+          uri,
+          headers: {
+            'Authorization': 'Bearer ${apiKey.trim()}',
+            'Accept': 'application/json',
+            if (!official && config.kind == ProviderKind.anthropic) ...{
+              'x-api-key': apiKey.trim(),
+              'anthropic-version': '2023-06-01',
+            },
+          },
+        )
+        .timeout(const Duration(seconds: 25));
+    if (response.statusCode != 200) {
+      throw AiClientException(switch (response.statusCode) {
+        401 || 403 => '密钥无效或没有访问模型的权限',
+        429 => '请求过于频繁，请稍后重试',
+        _ => '模型列表拉取失败（HTTP ${response.statusCode}）',
+      });
+    }
+    final body = jsonDecode(utf8.decode(response.bodyBytes));
+    if (body is! Map || body['data'] is! List) {
+      throw const AiClientException('供应商返回的模型列表格式不正确');
+    }
+    final seen = <String>{};
+    final models = <ProviderModel>[];
+    for (final item in body['data'] as List) {
+      if (item is! Map || item['id'] is! String) continue;
+      final id = (item['id'] as String).trim();
+      if (id.isEmpty || !seen.add(id)) continue;
+      models.add(
+        ProviderModel(
+          id: id,
+          name: item['name'] is String ? item['name'] as String : id,
+        ),
+      );
+    }
+    if (models.isEmpty) throw const AiClientException('供应商没有返回可用模型');
+    return models;
+  }
+
   Future<String> streamReply({
     required ProviderConfig config,
     required String apiKey,
     required List<PromptMessage> messages,
     required void Function(String fullText) onUpdate,
   }) async {
+    if (config.model.trim().isEmpty) throw const AiClientException('请先拉取并选择模型');
     if (apiKey.trim().isEmpty) {
       throw const AiClientException('尚未配置 API Key');
     }
@@ -71,8 +124,10 @@ class AiClient {
       });
     final response = await _client.send(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = await response.stream.bytesToString();
-      throw AiClientException('模型请求失败（${response.statusCode}）：${_short(body)}');
+      await response.stream.drain<void>();
+      throw AiClientException(
+        '模型请求失败（HTTP ${response.statusCode}），请检查密钥、模型和供应商地址',
+      );
     }
 
     final buffer = StringBuffer();
@@ -113,7 +168,10 @@ class AiClient {
     required List<PromptMessage> messages,
     required void Function(String fullText) onUpdate,
   }) async {
-    final uri = _endpoint(config.baseUrl, '/messages');
+    final base = _baseUri(config.baseUrl);
+    final uri = base.host.toLowerCase() == 'api.deepseek.com'
+        ? base.replace(path: '/anthropic/v1/messages')
+        : _endpoint(config.baseUrl, '/messages');
     final system = messages
         .where((e) => e.role == 'system')
         .map((e) => e.content)
@@ -121,6 +179,7 @@ class AiClient {
     final chat = messages.where((e) => e.role != 'system').toList();
     final request = http.Request('POST', uri)
       ..headers.addAll({
+        'Authorization': 'Bearer $apiKey',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
@@ -138,8 +197,10 @@ class AiClient {
       });
     final response = await _client.send(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = await response.stream.bytesToString();
-      throw AiClientException('模型请求失败（${response.statusCode}）：${_short(body)}');
+      await response.stream.drain<void>();
+      throw AiClientException(
+        '模型请求失败（HTTP ${response.statusCode}），请检查密钥、模型和供应商地址',
+      );
     }
 
     final buffer = StringBuffer();
@@ -169,18 +230,34 @@ class AiClient {
   }
 
   Uri _endpoint(String baseUrl, String suffix) {
-    final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
-    if (base.endsWith('/chat/completions') || base.endsWith('/messages')) {
-      return Uri.parse(base);
-    }
-    if (base.endsWith('/v1')) return Uri.parse('$base$suffix');
-    return Uri.parse('$base/v1$suffix');
+    final uri = _baseUri(baseUrl);
+    var path = uri.path.replaceAll(RegExp(r'/+$'), '');
+    path = path.replaceFirst(
+      RegExp(r'/(chat/completions|messages|models)$'),
+      '',
+    );
+    if (!path.endsWith('/v1')) path = '$path/v1';
+    return uri.replace(path: '$path$suffix');
   }
 
-  String _short(String value) {
-    final compact = value.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return compact.length <= 240 ? compact : '${compact.substring(0, 240)}…';
+  Uri _baseUri(String value) {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null ||
+        !['http', 'https'].contains(uri.scheme) ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      throw const AiClientException('请填写不含查询参数的有效 HTTP(S) 供应商地址');
+    }
+    return uri;
   }
 
   void close() => _client.close();
+}
+
+class ProviderModel {
+  const ProviderModel({required this.id, required this.name});
+  final String id;
+  final String name;
 }

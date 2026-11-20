@@ -1,3 +1,4 @@
+import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -62,7 +63,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
                     icon: Icons.person_add_alt_1_rounded,
                     tooltip: '创建角色',
                     onTap: () => context.push('/character/new'),
-                    soft: true,
+                    soft: false,
                   ),
                 ],
               ),
@@ -73,7 +74,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
               index: 1,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                child: TextField(
+                child: DtTextField(
                   onChanged: (value) => setState(() => _query = value),
                   decoration: const InputDecoration(
                     hintText: '搜索角色、标签或关系',
@@ -81,40 +82,6 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(vertical: 13),
                   ),
-                ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: DtStagger(
-              index: 2,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: _SmallActionCard(
-                        icon: Icons.auto_awesome_rounded,
-                        title: '特别关心',
-                        subtitle:
-                            '${data.relationships.where((e) => (e.metrics['好感'] ?? 0) >= 70).length} 位角色',
-                        color: DtColors.rose,
-                        onTap: () => setState(() => _tab = 0),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: _SmallActionCard(
-                        icon: Icons.groups_2_outlined,
-                        title: '群聊',
-                        subtitle: 'V2.2',
-                        color: DtColors.mint,
-                        onTap: () => _showGroupRoadmap(context),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -151,7 +118,20 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
-          if (_tab == 0)
+          if (characters.isEmpty && _tab == 0)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: DtEmptyState(
+                icon: Icons.person_outline,
+                title: '还没有角色',
+                body: '从一个名字和一段人设开始。',
+                action: DtButton(
+                  label: '创建角色',
+                  onPressed: () => context.push('/character/new'),
+                ),
+              ),
+            )
+          else if (_tab == 0)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 30),
               sliver: SliverList.separated(
@@ -245,98 +225,6 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
       if (relationship.characterId == characterId) return relationship;
     }
     return null;
-  }
-
-  void _showGroupRoadmap(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 4, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '多角色群聊',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              SizedBox(height: 8),
-              Text(
-                '数据模型从 V2.0 起已支持多参与者。V2.2 将开放群聊、角色独立记忆、群共享记忆和发言调度。',
-                style: TextStyle(fontSize: 14, height: 1.6),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallActionCard extends StatelessWidget {
-  const _SmallActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return DtSurface(
-      level: DtSurfaceLevel.raised,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      borderRadius: 20,
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: dark ? 0.16 : 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 19, color: color),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: dark
-                        ? const Color(0xFF7F889C)
-                        : const Color(0xFF969EAF),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -500,7 +388,7 @@ class _GroupCard extends StatelessWidget {
     return DtSurface(
       level: DtSurfaceLevel.raised,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      borderRadius: 20,
+      borderRadius: 12,
       child: Row(
         children: [
           Container(
@@ -547,7 +435,7 @@ class _RelationshipCard extends StatelessWidget {
     return DtSurface(
       level: DtSurfaceLevel.floating,
       padding: const EdgeInsets.all(16),
-      borderRadius: 24,
+      borderRadius: 12,
       onTap: () => context.push('/character/${character.id}'),
       child: Column(
         children: [

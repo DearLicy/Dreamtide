@@ -15,6 +15,7 @@ class ProviderKeyStore {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_webKey);
     }
+    if (!persistent) return _sessionKey;
     return _secure.read(key: _secureKey);
   }
 
@@ -29,7 +30,8 @@ class ProviderKeyStore {
       }
       return;
     }
-    if (value.isEmpty) {
+    _sessionKey = value.isEmpty ? null : value;
+    if (!persistent || value.isEmpty) {
       await _secure.delete(key: _secureKey);
     } else {
       await _secure.write(key: _secureKey, value: value);
