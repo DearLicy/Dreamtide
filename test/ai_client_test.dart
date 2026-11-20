@@ -88,7 +88,10 @@ void main() {
     );
     final updates = <String>[];
     final text = await ai.streamReply(
-      config: const ProviderConfig(model: 'actual-model'),
+      config: const ProviderConfig(
+        kind: ProviderKind.anthropic,
+        model: 'actual-model',
+      ),
       apiKey: 'test-key',
       messages: const [PromptMessage('user', 'hello')],
       onUpdate: updates.add,
@@ -143,7 +146,10 @@ void main() {
       );
 
       final summary = await ai.summarizeConversation(
-        config: const ProviderConfig(model: 'actual-model'),
+        config: const ProviderConfig(
+          kind: ProviderKind.anthropic,
+          model: 'actual-model',
+        ),
         apiKey: 'test-key',
         previousSummary: '上次我们去了海边 api_key=sk-abcdefghijklmnopQRSTUVWX',
         previousFacts: const [],

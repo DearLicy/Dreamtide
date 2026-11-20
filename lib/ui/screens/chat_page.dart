@@ -1,4 +1,5 @@
 import '../components/dt_sheet.dart';
+import '../components/dt_edit_sheet.dart';
 import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -302,6 +303,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (thread != null)
+                DtSettingRow(
+                  icon: Icons.manage_history_rounded,
+                  title: '聊天与数据',
+                  subtitle: '查找记录、清空聊天或重新开始',
+                  onTap: () {
+                    Navigator.pop(context);
+                    this.context.push('/chat-data/${thread.id}');
+                  },
+                ),
               DtSettingRow(
                 icon: Icons.person_outline_rounded,
                 title: '查看角色资料',
@@ -577,6 +588,43 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   },
                 ),
               DtSettingRow(
+                icon: Icons.edit_outlined,
+                title: '编辑消息',
+                subtitle: '保存到本机并用于后续对话',
+                onTap: () {
+                  Navigator.pop(context);
+                  showDtEditSheet(
+                    context: this.context,
+                    title: '编辑消息',
+                    description: '将重新整理自动摘要和自动记忆；手动记忆与关系数值保留，不会自动重发。',
+                    initialText: message.text,
+                    allowEmpty: message.kind == MessageKind.image,
+                    actionLabel: '保存修改',
+                    onSubmit: (text) => ref
+                        .read(appControllerProvider.notifier)
+                        .editMessage(message.id, text),
+                  );
+                },
+              ),
+              DtSettingRow(
+                icon: Icons.delete_outline_rounded,
+                title: '删除消息',
+                onTap: () {
+                  Navigator.pop(context);
+                  showDtEditSheet(
+                    context: this.context,
+                    title: '删除这条消息？',
+                    description:
+                        '删除消息及不再使用的图片，并重新整理自动摘要和自动记忆。手动记忆与关系数值保留。此操作无法撤销。',
+                    actionLabel: '删除消息',
+                    danger: true,
+                    onSubmit: (_) => ref
+                        .read(appControllerProvider.notifier)
+                        .deleteMessage(message.id),
+                  );
+                },
+              ),
+              DtSettingRow(
                 icon: Icons.copy_rounded,
                 title: '复制文本',
                 onTap: () async {
@@ -609,62 +657,37 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     Message message,
     Relationship relationship,
   ) {
-    final title = TextEditingController(text: '从对话中记住');
-    final content = TextEditingController(text: message.text);
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('添加长期记忆'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DtTextField(
-              controller: title,
-              decoration: const InputDecoration(labelText: '标题'),
-            ),
-            const SizedBox(height: 10),
-            DtTextField(
-              controller: content,
-              minLines: 3,
-              maxLines: 6,
-              decoration: const InputDecoration(labelText: '内容'),
-            ),
-          ],
-        ),
-        actions: [
-          DtActionButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+    showDtEditSheet(
+      context: this.context,
+      title: '添加长期记忆',
+      description: '从这条对话提炼需要记住的事实，可在记忆管理中继续编辑。',
+      initialText: message.text,
+      actionLabel: '保存记忆',
+      onSubmit: (content) async {
+        final controller = ref.read(appControllerProvider.notifier);
+        if (!ref
+            .read(appControllerProvider)
+            .data
+            .messages
+            .any((m) => m.id == message.id)) {
+          throw StateError('这条消息已删除，请关闭后重试。');
+        }
+        controller.upsertMemory(
+          MemoryItem(
+            id: const Uuid().v4(),
+            relationshipId: relationship.id,
+            type: MemoryType.experience,
+            title: '对话记忆',
+            content: content,
+            createdAt: DateTime.now(),
+            sourceThreadId: message.threadId,
+            sourceMessageId: message.id,
+            pinned: true,
           ),
-          DtActionButton.primary(
-            onPressed: () {
-              ref
-                  .read(appControllerProvider.notifier)
-                  .upsertMemory(
-                    MemoryItem(
-                      id: DateTime.now().microsecondsSinceEpoch.toString(),
-                      relationshipId: relationship.id,
-                      type: MemoryType.experience,
-                      title: title.text.trim().isEmpty
-                          ? '对话记忆'
-                          : title.text.trim(),
-                      content: content.text.trim(),
-                      createdAt: DateTime.now(),
-                      sourceThreadId: message.threadId,
-                      sourceMessageId: message.id,
-                      pinned: true,
-                    ),
-                  );
-              Navigator.pop(context);
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    ).whenComplete(() {
-      title.dispose();
-      content.dispose();
-    });
+        );
+        await controller.flush();
+      },
+    );
   }
 }
 
@@ -791,6 +814,14 @@ class _MessageBubble extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
+        if (message.editedAt != null)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              '已编辑',
+              style: TextStyle(fontSize: 10, color: DtColors.textSecondary),
+            ),
+          ),
         for (final segment in segments)
           if (segment.kind == DialogueSegmentKind.narration)
             DtPressable(

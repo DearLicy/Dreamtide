@@ -1,4 +1,5 @@
 import '../components/dt_sheet.dart';
+import '../components/dt_edit_sheet.dart';
 import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,12 +86,67 @@ class MomentsPage extends ConsumerWidget {
                         .read(appControllerProvider.notifier)
                         .toggleMomentLike(moment.id, data.owner.displayName),
                     onComment: () => _showCommentSheet(context, ref, moment),
+                    onMore: () => _showMomentActions(context, ref, moment),
                   ),
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showMomentActions(BuildContext context, WidgetRef ref, Moment moment) {
+    final pageContext = context;
+    final data = ref.read(appControllerProvider).data;
+    showDtSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!moment.fromAi && moment.authorId == data.owner.id)
+                DtSettingRow(
+                  icon: Icons.edit_outlined,
+                  title: '编辑动态',
+                  onTap: () {
+                    Navigator.pop(context);
+                    showDtEditSheet(
+                      context: pageContext,
+                      title: '编辑动态',
+                      description: '修改正文，保留已有的点赞和评论。',
+                      initialText: moment.content,
+                      actionLabel: '保存修改',
+                      onSubmit: (text) => ref
+                          .read(appControllerProvider.notifier)
+                          .editMoment(moment.id, text),
+                    );
+                  },
+                ),
+              DtSettingRow(
+                icon: Icons.delete_outline,
+                title: '删除动态',
+                onTap: () {
+                  Navigator.pop(context);
+                  showDtEditSheet(
+                    context: pageContext,
+                    title: '删除这条动态？',
+                    description: '正文、点赞和评论将一起从本机删除。此操作无法撤销。',
+                    actionLabel: '删除动态',
+                    danger: true,
+                    onSubmit: (_) => ref
+                        .read(appControllerProvider.notifier)
+                        .deleteMoment(moment.id),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -144,6 +200,7 @@ class MomentsPage extends ConsumerWidget {
   }
 
   void _showCommentSheet(BuildContext context, WidgetRef ref, Moment moment) {
+    final thisContext = context;
     final controller = TextEditingController();
     showDtSheet<void>(
       context: context,
@@ -184,26 +241,98 @@ class MomentsPage extends ConsumerWidget {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final comment = moment.comments[index];
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${comment.authorName}：',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              comment.content,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                height: 1.45,
+                      return DtPressable(
+                        onLongPress: () {
+                          Navigator.pop(context);
+                          showDtSheet<void>(
+                            context: thisContext,
+                            builder: (menuContext) => SafeArea(
+                              top: false,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  0,
+                                  16,
+                                  16,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!comment.fromAi)
+                                      DtSettingRow(
+                                        icon: Icons.edit_outlined,
+                                        title: '编辑评论',
+                                        onTap: () {
+                                          Navigator.pop(menuContext);
+                                          showDtEditSheet(
+                                            context: thisContext,
+                                            title: '编辑评论',
+                                            description: '修改你的这条评论。',
+                                            initialText: comment.content,
+                                            actionLabel: '保存修改',
+                                            onSubmit: (text) => ref
+                                                .read(
+                                                  appControllerProvider
+                                                      .notifier,
+                                                )
+                                                .editMomentComment(
+                                                  moment.id,
+                                                  comment.id,
+                                                  text,
+                                                ),
+                                          );
+                                        },
+                                      ),
+                                    DtSettingRow(
+                                      icon: Icons.delete_outline,
+                                      title: '删除评论',
+                                      onTap: () {
+                                        Navigator.pop(menuContext);
+                                        showDtEditSheet(
+                                          context: thisContext,
+                                          title: '删除这条评论？',
+                                          description:
+                                              '只删除选中的评论，动态和其他评论保留。此操作无法撤销。',
+                                          actionLabel: '删除评论',
+                                          danger: true,
+                                          onSubmit: (_) => ref
+                                              .read(
+                                                appControllerProvider.notifier,
+                                              )
+                                              .deleteMomentComment(
+                                                moment.id,
+                                                comment.id,
+                                              ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          );
+                        },
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${comment.authorName}：',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                comment.content,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
@@ -247,6 +376,7 @@ class _MomentCard extends StatelessWidget {
     required this.dark,
     required this.onLike,
     required this.onComment,
+    required this.onMore,
   });
 
   final Moment moment;
@@ -254,6 +384,7 @@ class _MomentCard extends StatelessWidget {
   final bool dark;
   final VoidCallback onLike;
   final VoidCallback onComment;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
@@ -322,10 +453,10 @@ class _MomentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.more_horiz_rounded,
-                size: 20,
-                color: dark ? const Color(0xFF6A7388) : const Color(0xFFA5ACBA),
+              DtIconButton(
+                icon: Icons.more_horiz_rounded,
+                tooltip: '动态操作',
+                onTap: onMore,
               ),
             ],
           ),

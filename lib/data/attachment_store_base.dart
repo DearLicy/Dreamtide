@@ -11,5 +11,7 @@ abstract class AttachmentStore {
 
   Future<Uint8List?> readImage(String reference);
 
+  Future<void> delete(String reference);
+
   Future<void> clear();
 }

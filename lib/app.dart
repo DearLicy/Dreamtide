@@ -15,41 +15,15 @@ class DreamtideApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Capture the platform entry route before the temporary loading app can
+    // consume/reset the browser URL. Keep the same router for the full session.
+    final router = ref.watch(appRouterProvider);
     final state = ref.watch(appControllerProvider);
     final themeMode = switch (state.data.settings.themeMode) {
       AppThemeMode.system => ThemeMode.system,
       AppThemeMode.light => ThemeMode.light,
       AppThemeMode.dark => ThemeMode.dark,
     };
-    if (state.loading) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: DtTheme.light(),
-        darkTheme: DtTheme.dark(),
-        builder: _foruiBuilder,
-        home: const _LoadingPage(),
-      );
-    }
-    if (!state.data.settings.ageConfirmed) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: '触梦 Dreamtide',
-        theme: DtTheme.light(),
-        darkTheme: DtTheme.dark(),
-        themeMode: themeMode,
-        locale: const Locale('zh', 'CN'),
-        supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
-        localizationsDelegates: const [
-          FLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        builder: _foruiBuilder,
-        home: const AgeGatePage(),
-      );
-    }
-    final router = ref.watch(appRouterProvider);
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: '触梦 Dreamtide',
@@ -67,6 +41,17 @@ class DreamtideApp extends ConsumerWidget {
       ],
       builder: (context, child) {
         final media = MediaQuery.of(context);
+        final page = state.loading
+            ? const _LoadingPage()
+            : !state.data.settings.ageConfirmed
+            ? Navigator(
+                initialRoute: '/',
+                onGenerateRoute: (settings) => MaterialPageRoute<void>(
+                  settings: settings,
+                  builder: (_) => const AgeGatePage(),
+                ),
+              )
+            : child;
         final content = MediaQuery(
           data: media.copyWith(
             textScaler: media.textScaler.clamp(
@@ -74,7 +59,7 @@ class DreamtideApp extends ConsumerWidget {
               maxScaleFactor: 1.15,
             ),
           ),
-          child: _foruiBuilder(context, child),
+          child: _foruiBuilder(context, page),
         );
         if (!kIsWeb || media.size.width < 720) return content;
 
@@ -115,7 +100,7 @@ class DreamtideApp extends ConsumerWidget {
                         maxScaleFactor: 1.15,
                       ),
                     ),
-                    child: _foruiBuilder(context, child),
+                    child: _foruiBuilder(context, page),
                   ),
                 ),
               ),

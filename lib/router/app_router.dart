@@ -7,6 +7,8 @@ import '../ui/screens/backup_page.dart';
 import '../ui/screens/character_detail_page.dart';
 import '../ui/screens/character_editor_page.dart';
 import '../ui/screens/chat_page.dart';
+import '../ui/screens/chat_data_page.dart';
+import '../ui/screens/chat_history_page.dart';
 import '../ui/screens/consent_page.dart';
 import '../ui/screens/contacts_page.dart';
 import '../ui/screens/director_page.dart';
@@ -60,6 +62,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat/:threadId',
         builder: (context, state) =>
             ChatPage(threadId: state.pathParameters['threadId']!),
+      ),
+      GoRoute(
+        path: '/chat-data/:threadId',
+        builder: (context, state) =>
+            ChatDataPage(threadId: state.pathParameters['threadId']!),
+      ),
+      GoRoute(
+        path: '/chat-history/:threadId',
+        builder: (context, state) =>
+            ChatHistoryPage(threadId: state.pathParameters['threadId']!),
       ),
       GoRoute(
         path: '/character/new',

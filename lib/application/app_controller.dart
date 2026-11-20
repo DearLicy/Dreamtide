@@ -15,6 +15,8 @@ import '../data/initial_data.dart';
 import '../data/attachment_store.dart';
 import '../domain/models.dart';
 
+part 'data_management.dart';
+
 class ApplicationState {
   const ApplicationState({
     required this.data,
@@ -81,9 +83,15 @@ class AppController extends StateNotifier<ApplicationState> {
   final ApiKeyStore _keyStore;
   final AiClient _aiClient;
   final AttachmentStore? _attachmentStore;
+  ApplicationState get _snapshot => state;
+  set _snapshot(ApplicationState value) => state = value;
+
   final ContextAssembler _assembler = const ContextAssembler();
   final Uuid _uuid = const Uuid();
   Timer? _saveTimer;
+  Future<void> _saveQueue = Future<void>.value();
+  final Map<String, int> _threadRevisions = {};
+  final Set<String> _pendingAttachmentDeletes = {};
   bool _hasApiKey = false;
   int _generation = 0;
   int _lifecycleGeneration = 0;
@@ -130,16 +138,28 @@ class AppController extends StateNotifier<ApplicationState> {
 
   Future<void> _persist(AppData data) async {
     try {
-      await _store.save(data);
+      await _writeData(data);
+      await _cleanupAttachments(data);
     } catch (error) {
       if (!mounted) return;
       state = state.copyWith(error: '保存失败：$error');
     }
   }
 
+  Future<void> _writeData(AppData data) {
+    final write = _saveQueue.then((_) => _store.save(data));
+    _saveQueue = write.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return write;
+  }
+
   Future<void> flush() async {
     _saveTimer?.cancel();
-    await _store.save(state.data);
+    final snapshot = state.data;
+    await _writeData(snapshot);
+    await _cleanupAttachments(snapshot);
   }
 
   void confirmAdult() {
@@ -211,7 +231,19 @@ class AppController extends StateNotifier<ApplicationState> {
     } else {
       characters.add(character);
     }
-    _commit(state.data.copyWith(characters: characters));
+    _commit(
+      state.data.copyWith(
+        characters: characters,
+        threads: [
+          for (final thread in state.data.threads)
+            if (state.data.relationshipForThread(thread)?.characterId ==
+                character.id)
+              thread.copyWith(title: character.name)
+            else
+              thread,
+        ],
+      ),
+    );
   }
 
   ChatThread addCharacterWithRelationship(Character character) {
@@ -449,22 +481,39 @@ class AppController extends StateNotifier<ApplicationState> {
     final promptInput = isImage
         ? (trimmed.isEmpty ? '（用户发送了一张图片）' : '（用户发送了一张图片）$trimmed')
         : trimmed;
+    final priorUser = userMessageId == null
+        ? null
+        : data.messages
+              .where(
+                (message) =>
+                    message.id == userMessageId && message.threadId == threadId,
+              )
+              .firstOrNull;
+    final historyBeforeUser = userMessageId == null
+        ? data
+        : data.copyWith(
+            messages: data.messages
+                .where((message) => message.id != userMessageId)
+                .toList(),
+          );
     final prompt = _assembler.assemble(
-      data: data,
+      data: historyBeforeUser,
       thread: activeThread,
       userInput: promptInput,
     );
     final acceptedAt = DateTime.now();
-    final userMessage = Message(
-      id: userMessageId ?? _uuid.v4(),
-      threadId: threadId,
-      senderId: data.owner.id,
-      senderName: data.owner.displayName,
-      text: trimmed,
-      createdAt: acceptedAt,
-      kind: kind,
-      localPath: localPath,
-    );
+    final userMessage =
+        priorUser?.copyWith(text: trimmed) ??
+        Message(
+          id: userMessageId ?? _uuid.v4(),
+          threadId: threadId,
+          senderId: data.owner.id,
+          senderName: data.owner.displayName,
+          text: trimmed,
+          createdAt: acceptedAt,
+          kind: kind,
+          localPath: localPath,
+        );
     final relationshipAfterInput = activeRelationship.copyWith(
       replyEnergy: prompt.replyPlan.energy,
       lastInteractionAt: acceptedAt,
@@ -472,6 +521,7 @@ class AppController extends StateNotifier<ApplicationState> {
     _appendMessages(
       [userMessage],
       threadId,
+      baseMessages: historyBeforeUser.messages,
       relationshipUpdate: relationshipAfterInput,
     );
     onAccepted?.call();
@@ -647,7 +697,9 @@ class AppController extends StateNotifier<ApplicationState> {
               stage: adjustment.stage,
               interactionCount:
                   currentRelationship.interactionCount +
-                  (adjustment.changed ? 1 : 0),
+                  (currentRelationship.lastMetricMessageId != userMessage.id
+                      ? 1
+                      : 0),
               lastMetricDelta: adjustment.changed
                   ? adjustment.delta
                   : currentRelationship.lastMetricDelta,
@@ -749,36 +801,16 @@ class AppController extends StateNotifier<ApplicationState> {
       return;
     }
 
+    // Key-store access yields: never replay an obsolete snapshot over a chat
+    // that was edited, cleared or restarted while that read was pending.
+    if (!identical(state.data, data)) return;
     final removedIds = {
       for (var index = userIndex; index < history.length; index++)
         history[index].id,
     };
-    final remaining = data.messages
-        .where((message) => !removedIds.contains(message.id))
-        .toList();
-    final remainingInThread =
-        remaining.where((message) => message.threadId == threadId).toList()
-          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    final cursorRemoved =
-        thread.summarizedThroughMessageId != null &&
-        removedIds.contains(thread.summarizedThroughMessageId);
-    final replacementCursor = remainingInThread.lastOrNull?.id;
-
-    _commit(
-      data.copyWith(
-        messages: remaining,
-        threads: [
-          for (final item in data.threads)
-            if (item.id == threadId && cursorRemoved)
-              item.copyWith(
-                summarizedThroughMessageId: replacementCursor,
-                clearSummarizedThroughMessageId: replacementCursor == null,
-              )
-            else
-              item,
-        ],
-      ),
-    );
+    final revision = (_threadRevisions[threadId] ?? 0) + 1;
+    await _changeMessages(removedIds, preserveMessageIds: {user.id});
+    if (!mounted || revision != (_threadRevisions[threadId] ?? 0)) return;
     await sendMessage(
       threadId,
       user.text,
@@ -827,7 +859,7 @@ class AppController extends StateNotifier<ApplicationState> {
   /// a user deletion is not silently undone by replaying the same old turns.
   void setThreadContextMemo(String threadId, String value) {
     final memo = value.trim();
-    _summaryRetryAfter.remove(threadId);
+    _invalidateThread(threadId);
     final latestMessageId = state.data.messages
         .where(
           (message) =>
@@ -870,6 +902,12 @@ class AppController extends StateNotifier<ApplicationState> {
       return;
     }
     final abort = Completer<void>();
+    final revision = _threadRevisions[threadId] ?? 0;
+    bool isCurrent() =>
+        mounted &&
+        lifecycleGeneration == _lifecycleGeneration &&
+        revision == (_threadRevisions[threadId] ?? 0) &&
+        !abort.isCompleted;
     _summaryAbortTriggers[threadId] = abort;
     try {
       final data = state.data;
@@ -886,7 +924,7 @@ class AppController extends StateNotifier<ApplicationState> {
       if (window == null) return;
       final config = data.settings.provider;
       final apiKey = await _keyStore.read(persistent: config.rememberKey);
-      if (!mounted || lifecycleGeneration != _lifecycleGeneration) return;
+      if (!isCurrent()) return;
       if (apiKey == null || apiKey.trim().isEmpty) return;
 
       final memoryUpdate = await _aiClient.summarizeConversation(
@@ -908,7 +946,7 @@ class AppController extends StateNotifier<ApplicationState> {
         conversationExcerpt: window.toTranscript(),
         abortTrigger: abort.future,
       );
-      if (!mounted || lifecycleGeneration != _lifecycleGeneration) return;
+      if (!isCurrent()) return;
       final current = state.data;
       final currentThread = current.threads
           .where((item) => item.id == threadId)
@@ -952,7 +990,7 @@ class AppController extends StateNotifier<ApplicationState> {
     } catch (_) {
       // Memory is auxiliary: never surface a second-request failure as a chat
       // error or replace the last known-good memo.
-      if (!abort.isCompleted) {
+      if (isCurrent()) {
         _summaryRetryAfter[threadId] = DateTime.now().add(
           const Duration(minutes: 5),
         );
@@ -1256,7 +1294,8 @@ class AppController extends StateNotifier<ApplicationState> {
     ++_generation;
     ++_lifecycleGeneration;
     _summaryRetryAfter.clear();
-    await _store.save(data);
+    _saveTimer?.cancel();
+    await _writeData(data);
     _commit(data);
     state = state.copyWith(clearGenerating: true);
   }
@@ -1271,6 +1310,7 @@ class AppController extends StateNotifier<ApplicationState> {
     _saveTimer?.cancel();
     await _attachmentStore?.clear();
     await _keyStore.clear();
+    await _saveQueue;
     await _store.clear();
     _hasApiKey = false;
     _commit(buildEmptyData());

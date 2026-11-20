@@ -202,6 +202,15 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DtSettingRow(
+                icon: Icons.manage_history_rounded,
+                title: '聊天与数据',
+                subtitle: '查找记录、清空聊天或重新开始',
+                onTap: () {
+                  Navigator.pop(context);
+                  this.context.push('/chat-data/${thread.id}');
+                },
+              ),
+              DtSettingRow(
                 icon: Icons.push_pin_outlined,
                 title: thread.pinned ? '取消置顶' : '置顶对话',
                 onTap: () {

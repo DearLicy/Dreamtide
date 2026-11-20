@@ -140,6 +140,13 @@ class CharacterDetailPage extends ConsumerWidget {
           ),
           const SizedBox(height: 18),
           if (thread != null)
+            DtSettingRow(
+              icon: Icons.manage_history_rounded,
+              title: '聊天与数据',
+              subtitle: '查找记录、清空聊天、重新开始或删除角色',
+              onTap: () => context.push('/chat-data/${thread.id}'),
+            ),
+          if (thread != null)
             DtButton(
               label: '进入对话',
               icon: Icons.chat_bubble_outline_rounded,

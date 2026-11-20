@@ -26,6 +26,9 @@ void main() {
         isTrue,
       );
       expect(data.settings.provider.baseUrl, 'https://api.deepseek.com');
+      expect(data.settings.provider.kind, ProviderKind.openaiCompatible);
+      expect(const ProviderConfig().kind, ProviderKind.openaiCompatible);
+      expect(ProviderConfig.fromJson({}).kind, ProviderKind.openaiCompatible);
       expect(data.settings.provider.model, isEmpty);
       expect(data.settings.provider.models, isEmpty);
       expect(data.settings.provider.rememberKey, isFalse);

@@ -7,6 +7,7 @@ import '../../domain/models.dart';
 import '../components/dt_avatar.dart';
 import '../components/dt_controls.dart';
 import '../components/dt_detail_page.dart';
+import '../components/dt_edit_sheet.dart';
 import '../components/dt_motion.dart';
 import '../theme/dt_theme.dart';
 
@@ -44,6 +45,19 @@ class PersonasPage extends ConsumerWidget {
                   .read(appControllerProvider.notifier)
                   .selectPersona(persona.id),
               onEdit: () => context.push('/persona/${persona.id}'),
+              onDelete: () => showDtEditSheet(
+                context: context,
+                title: '删除梦设「${persona.name}」？',
+                description:
+                    data.relationships.any((r) => r.personaId == persona.id)
+                    ? '该梦设仍绑定着角色关系，不能直接删除，以免混淆身份和记忆。请先管理相关角色。'
+                    : '将删除这套梦设。若它是当前梦设，会自动切换到剩余梦设；没有剩余时回到未选择状态。此操作无法撤销。',
+                actionLabel: '删除梦设',
+                danger: true,
+                onSubmit: (_) => ref
+                    .read(appControllerProvider.notifier)
+                    .deletePersona(persona.id),
+              ),
             ),
             const SizedBox(height: 10),
           ],
@@ -103,6 +117,7 @@ class _PersonaCard extends StatelessWidget {
     required this.relationshipCount,
     required this.onTap,
     required this.onEdit,
+    required this.onDelete,
   });
 
   final UserPersona persona;
@@ -110,6 +125,7 @@ class _PersonaCard extends StatelessWidget {
   final int relationshipCount;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -204,6 +220,11 @@ class _PersonaCard extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
+                      DtIconButton(
+                        icon: Icons.delete_outline,
+                        tooltip: '删除梦设',
+                        onTap: onDelete,
+                      ),
                       DtActionButton.icon(
                         onPressed: onEdit,
                         icon: const Icon(Icons.edit_outlined, size: 15),

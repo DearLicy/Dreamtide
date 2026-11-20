@@ -44,6 +44,19 @@ class _IoAttachmentStore implements AttachmentStore {
   }
 
   @override
+  Future<void> delete(String reference) async {
+    final safeName = p.basename(reference);
+    if (safeName.isEmpty ||
+        safeName != reference ||
+        safeName == '.' ||
+        safeName == '..') {
+      return;
+    }
+    final file = File(p.join((await _directory()).path, safeName));
+    if (await file.exists()) await file.delete();
+  }
+
+  @override
   Future<void> clear() async {
     final directory = await _directory();
     if (await directory.exists()) await directory.delete(recursive: true);

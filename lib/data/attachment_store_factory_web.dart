@@ -62,6 +62,14 @@ class _WebAttachmentStore implements AttachmentStore {
   }
 
   @override
+  Future<void> delete(String reference) async {
+    final db = await _open();
+    final transaction = db.transaction(_storeName, idbModeReadWrite);
+    await transaction.objectStore(_storeName).delete(reference);
+    await transaction.completed;
+  }
+
+  @override
   Future<void> clear() async {
     final db = await _open();
     final transaction = db.transaction(_storeName, idbModeReadWrite);

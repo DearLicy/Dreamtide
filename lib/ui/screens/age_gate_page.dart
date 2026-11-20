@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/app_controller.dart';
 import '../components/dt_controls.dart';
+import '../components/dt_sheet.dart';
 import '../components/dt_motion.dart';
 import '../theme/dt_theme.dart';
 
@@ -158,19 +159,39 @@ class _AgeGatePageState extends ConsumerState<AgeGatePage> {
                           ),
                           const SizedBox(height: 10),
                           DtActionButton(
-                            onPressed: () => showDialog<void>(
+                            onPressed: () => showDtSheet<void>(
                               context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('无法继续'),
-                                content: const Text(
-                                  'Dreamtide 不面向未成年人提供。请关闭应用。',
-                                ),
-                                actions: [
-                                  DtActionButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('返回'),
+                              builder: (context) => SafeArea(
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    0,
+                                    16,
+                                    16,
                                   ),
-                                ],
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        '无法继续',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      const Text('Dreamtide 不面向未成年人提供。请关闭应用。'),
+                                      const SizedBox(height: 16),
+                                      DtButton(
+                                        label: '返回',
+                                        onPressed: () => Navigator.pop(context),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                             child: const Text('我未满 18 岁'),

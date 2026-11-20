@@ -13,7 +13,7 @@ AppData buildEmptyData() {
     settings: const AppSettings(
       currentPersonaId: '',
       provider: ProviderConfig(
-        kind: ProviderKind.anthropic,
+        kind: ProviderKind.openaiCompatible,
         baseUrl: 'https://api.deepseek.com',
         model: '',
       ),

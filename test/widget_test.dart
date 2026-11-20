@@ -48,6 +48,9 @@ class _FakeAttachmentStore implements AttachmentStore {
   );
 
   @override
+  Future<void> delete(String reference) async {}
+
+  @override
   Future<void> clear() async {}
 
   @override
