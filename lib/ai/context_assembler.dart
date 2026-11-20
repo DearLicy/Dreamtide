@@ -85,9 +85,7 @@ class ContextAssembler {
         for (final message in recent)
           PromptMessage(
             message.fromAi ? 'assistant' : 'user',
-            message.interrupted
-                ? '（上一条回复被用户打断，尚未说完）${message.text}'
-                : message.text,
+            _historyText(message),
           ),
         PromptMessage('user', userInput.trim()),
       ],
@@ -282,4 +280,15 @@ $memoryText
 
   ContentLevel _lowerContentLevel(ContentLevel a, ContentLevel b) =>
       a.index <= b.index ? a : b;
+
+  String _historyText(Message message) {
+    final imagePrefix = message.kind == MessageKind.image
+        ? (message.fromAi ? '[角色发送了一张图片]' : '[用户发送了一张图片]')
+        : '';
+    final text = [
+      imagePrefix,
+      message.text.trim(),
+    ].where((part) => part.isNotEmpty).join(' ');
+    return message.interrupted ? '（上一条回复被用户打断，尚未说完）$text' : text;
+  }
 }

@@ -24,13 +24,6 @@ class ReplyPlan {
 
   bool get shouldReply => act != ReplyAct.staySilent;
 
-  int get maxCharacters => switch (length) {
-    ReplyLength.oneWord => 5,
-    ReplyLength.short => 100,
-    ReplyLength.medium => 320,
-    ReplyLength.detailed => 2400,
-  };
-
   /// Apply the same display policy to partial and final output. Keep meaningful
   /// questions (especially consent checks); do not disguise them as statements.
   String prepareText(String raw) {
@@ -70,15 +63,7 @@ class ReplyPlan {
           )
           .trimRight();
     }
-    final runes = text.runes.toList();
-    if (runes.length <= maxCharacters) return text;
-    var end = maxCharacters;
-    final boundary = runes
-        .take(end)
-        .toList()
-        .lastIndexWhere((rune) => '。！？；\n'.runes.contains(rune));
-    if (boundary >= (maxCharacters * 0.6).round()) end = boundary + 1;
-    return String.fromCharCodes(runes.take(end)).trimRight();
+    return text;
   }
 
   String toPromptInstruction() {

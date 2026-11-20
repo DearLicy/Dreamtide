@@ -241,6 +241,196 @@ void main() {
       );
     },
   );
+
+  test(
+    'failed turn can be retried without duplicating the user message',
+    () async {
+      final initial = buildSeedData();
+      final data = initial.copyWith(
+        settings: initial.settings.copyWith(
+          provider: const ProviderConfig(
+            kind: ProviderKind.openaiCompatible,
+            baseUrl: 'https://memory.test/v1',
+            model: 'memory-model',
+          ),
+        ),
+      );
+      final ai = _QueuedReplyAi([
+        const AiClientException('模型返回了空内容'),
+        '我在，刚才卡了一下。',
+      ]);
+      final controller = AppController(
+        store: _MemoryStore(data),
+        keyStore: _MemoryKeyStore(),
+        aiClient: ai,
+      );
+      addTearDown(controller.dispose);
+      for (
+        var attempt = 0;
+        attempt < 20 && controller.state.loading;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      final threadId = data.threads.first.id;
+      final initialUsers = data.messages
+          .where((message) => message.threadId == threadId && !message.fromAi)
+          .length;
+      final initialReplies = data.messages
+          .where((message) => message.threadId == threadId && message.fromAi)
+          .length;
+      await controller.sendMessage(threadId, '在吗');
+      expect(controller.state.error, contains('空内容'));
+      expect(
+        controller.state.data.messages
+            .where((message) => message.threadId == threadId && !message.fromAi)
+            .length,
+        initialUsers + 1,
+      );
+
+      controller.clearError();
+      await controller.retryLastTurn(threadId);
+      final userMessages = controller.state.data.messages
+          .where((message) => message.threadId == threadId && !message.fromAi)
+          .toList();
+      final replies = controller.state.data.messages
+          .where((message) => message.threadId == threadId && message.fromAi)
+          .toList();
+      expect(userMessages, hasLength(initialUsers + 1));
+      expect(userMessages.last.text, '在吗');
+      expect(replies, hasLength(initialReplies + 1));
+      expect(replies.last.text, '我在，刚才卡了一下。');
+      expect(controller.state.error, isNull);
+    },
+  );
+
+  test('regenerate replaces the latest assistant reply only', () async {
+    final initial = buildSeedData();
+    final data = initial.copyWith(
+      settings: initial.settings.copyWith(
+        provider: const ProviderConfig(
+          kind: ProviderKind.openaiCompatible,
+          baseUrl: 'https://memory.test/v1',
+          model: 'memory-model',
+        ),
+      ),
+    );
+    final ai = _QueuedReplyAi(['旧回复', '重新想过后的新回复']);
+    final controller = AppController(
+      store: _MemoryStore(data),
+      keyStore: _MemoryKeyStore(),
+      aiClient: ai,
+    );
+    addTearDown(controller.dispose);
+    for (var attempt = 0; attempt < 20 && controller.state.loading; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+
+    final threadId = data.threads.first.id;
+    final initialUsers = data.messages
+        .where((message) => message.threadId == threadId && !message.fromAi)
+        .length;
+    final initialReplies = data.messages
+        .where((message) => message.threadId == threadId && message.fromAi)
+        .length;
+    await controller.sendMessage(threadId, '再说一次');
+    await controller.regenerateLastReply(threadId);
+    final threadMessages = controller.state.data.messages
+        .where((message) => message.threadId == threadId)
+        .toList();
+    expect(
+      threadMessages.where((message) => !message.fromAi),
+      hasLength(initialUsers + 1),
+    );
+    expect(
+      threadMessages.where((message) => !message.fromAi).last.text,
+      '再说一次',
+    );
+    expect(
+      threadMessages.where((message) => message.fromAi),
+      hasLength(initialReplies + 1),
+    );
+    expect(
+      threadMessages.where((message) => message.fromAi).last.text,
+      '重新想过后的新回复',
+    );
+  });
+
+  test(
+    'image message persists an attachment reference and reaches the prompt',
+    () async {
+      final initial = buildSeedData();
+      final data = initial.copyWith(
+        settings: initial.settings.copyWith(
+          provider: const ProviderConfig(
+            kind: ProviderKind.openaiCompatible,
+            baseUrl: 'https://memory.test/v1',
+            model: 'vision-model',
+          ),
+        ),
+      );
+      final ai = _QueuedReplyAi(['这张图看起来很有氛围。']);
+      final controller = AppController(
+        store: _MemoryStore(data),
+        keyStore: _MemoryKeyStore(),
+        aiClient: ai,
+      );
+      addTearDown(controller.dispose);
+      for (
+        var attempt = 0;
+        attempt < 20 && controller.state.loading;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      final threadId = data.threads.first.id;
+      await controller.sendMessage(
+        threadId,
+        '像不像下雨的晚上',
+        kind: MessageKind.image,
+        localPath: 'image-reference.jpg',
+      );
+      final sent = controller.state.data.messages
+          .where(
+            (message) =>
+                message.threadId == threadId &&
+                !message.fromAi &&
+                message.kind == MessageKind.image,
+          )
+          .last;
+      expect(sent.localPath, 'image-reference.jpg');
+      expect(sent.text, '像不像下雨的晚上');
+      expect(ai.requests.last.last.content, contains('用户发送了一张图片'));
+      expect(ai.requests.last.last.content, contains('下雨的晚上'));
+    },
+  );
+}
+
+class _QueuedReplyAi extends AiClient {
+  _QueuedReplyAi(this.outcomes);
+
+  final List<Object> outcomes;
+  final List<List<PromptMessage>> requests = [];
+  var calls = 0;
+
+  @override
+  Future<String> streamReply({
+    required ProviderConfig config,
+    required String apiKey,
+    required List<PromptMessage> messages,
+    required void Function(String) onUpdate,
+    int? maxOutputTokens,
+    Future<void>? abortTrigger,
+  }) async {
+    requests.add(messages);
+    final outcome = outcomes[calls++];
+    if (outcome is Exception) throw outcome;
+    final reply = outcome as String;
+    onUpdate(reply);
+    return reply;
+  }
 }
 
 class _InterruptibleAi extends AiClient {
@@ -253,7 +443,7 @@ class _InterruptibleAi extends AiClient {
     required String apiKey,
     required List<PromptMessage> messages,
     required void Function(String) onUpdate,
-    int maxOutputTokens = 420,
+    int? maxOutputTokens,
     Future<void>? abortTrigger,
   }) async {
     requests.add(messages);

@@ -69,7 +69,7 @@ class AppDrawer extends ConsumerWidget {
                             icon: Icons.photo_library_outlined,
                             iconColor: const Color(0xFFE6A43B),
                             title: '梦境相册',
-                            subtitle: '图片与剧情回忆将在 V2.3 开放',
+                            subtitle: '聊天图片已开放；剧情相册将在 V2.3 提供',
                             onTap: () => _comingSoon(context),
                           ),
                           _DrawerRow(

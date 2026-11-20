@@ -145,7 +145,7 @@ class SafetyPage extends ConsumerWidget {
                   icon: Icons.lock_outline_rounded,
                   iconColor: DtColors.brand,
                   title: '应用锁',
-                  subtitle: '生物识别/PIN 原生模块将在 V2.0.1 接入',
+                  subtitle: '生物识别/PIN 原生模块将在后续版本接入',
                 ),
                 Divider(indent: 62),
                 DtSettingRow(

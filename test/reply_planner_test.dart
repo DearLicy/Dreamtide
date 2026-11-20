@@ -36,7 +36,7 @@ void main() {
   });
 
   test(
-    'one-word acknowledgements filter narration and never display more than five characters',
+    'one-word acknowledgements filter narration without cutting the reply',
     () {
       final data = buildSeedData();
       final relationship = data.relationships.first;
@@ -47,8 +47,7 @@ void main() {
       );
 
       final visible = plan.prepareText('（笑了一下）你也挺厉害的，哈哈。');
-      expect(visible, '你也挺厉害');
-      expect(visible.runes.length, lessThanOrEqualTo(5));
+      expect(visible, '你也挺厉害的，哈哈。');
     },
   );
 

@@ -6,11 +6,11 @@ import 'package:uuid/uuid.dart';
 import '../ai/ai_client.dart';
 import '../ai/conversation_summary.dart';
 import '../ai/context_assembler.dart';
-import '../ai/reply_planner.dart';
 import '../data/local_store.dart';
 import '../data/local_store_factory.dart';
 import '../data/provider_key_store.dart';
 import '../data/initial_data.dart';
+import '../data/attachment_store.dart';
 import '../domain/models.dart';
 
 class ApplicationState {
@@ -47,9 +47,13 @@ class ApplicationState {
   );
 }
 
+final attachmentStoreProvider = Provider<AttachmentStore>(
+  (ref) => createAttachmentStore(),
+);
+
 final appControllerProvider =
     StateNotifierProvider<AppController, ApplicationState>((ref) {
-      return AppController();
+      return AppController(attachmentStore: ref.watch(attachmentStoreProvider));
     });
 
 final currentPersonaProvider = Provider<UserPersona?>((ref) {
@@ -62,9 +66,11 @@ class AppController extends StateNotifier<ApplicationState> {
     LocalDataStore? store,
     ApiKeyStore? keyStore,
     AiClient? aiClient,
+    AttachmentStore? attachmentStore,
   }) : _store = store ?? createLocalDataStore(),
        _keyStore = keyStore ?? ProviderKeyStore(),
        _aiClient = aiClient ?? AiClient(),
+       _attachmentStore = attachmentStore,
        super(ApplicationState(data: buildEmptyData())) {
     _load();
   }
@@ -72,6 +78,7 @@ class AppController extends StateNotifier<ApplicationState> {
   final LocalDataStore _store;
   final ApiKeyStore _keyStore;
   final AiClient _aiClient;
+  final AttachmentStore? _attachmentStore;
   final ContextAssembler _assembler = const ContextAssembler();
   final Uuid _uuid = const Uuid();
   Timer? _saveTimer;
@@ -85,6 +92,10 @@ class AppController extends StateNotifier<ApplicationState> {
   String? _activeAssistantMessageId;
 
   bool get hasApiKey => _hasApiKey;
+
+  void clearError() {
+    if (state.error != null) state = state.copyWith(clearError: true);
+  }
 
   Future<void> _load() async {
     try {
@@ -323,10 +334,13 @@ class AppController extends StateNotifier<ApplicationState> {
   Future<void> sendMessage(
     String threadId,
     String text, {
+    MessageKind kind = MessageKind.text,
+    String? localPath,
     void Function()? onAccepted,
   }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    final isImage = kind == MessageKind.image && localPath?.isNotEmpty == true;
+    if (trimmed.isEmpty && !isImage) return;
     final pendingSummary = _summaryAbortTriggers[threadId];
     if (pendingSummary != null && !pendingSummary.isCompleted) {
       pendingSummary.complete();
@@ -359,7 +373,8 @@ class AppController extends StateNotifier<ApplicationState> {
       return;
     }
 
-    if (trimmed.toLowerCase() == relationship.consent.safeWord.toLowerCase()) {
+    if (!isImage &&
+        trimmed.toLowerCase() == relationship.consent.safeWord.toLowerCase()) {
       final stoppedRelationship = relationship.copyWith(
         consent: relationship.consent.copyWith(paused: true),
       );
@@ -428,10 +443,13 @@ class AppController extends StateNotifier<ApplicationState> {
       return;
     }
 
+    final promptInput = isImage
+        ? (trimmed.isEmpty ? '（用户发送了一张图片）' : '（用户发送了一张图片）$trimmed')
+        : trimmed;
     final prompt = _assembler.assemble(
       data: data,
       thread: activeThread,
-      userInput: trimmed,
+      userInput: promptInput,
     );
     final acceptedAt = DateTime.now();
     final userMessage = Message(
@@ -441,6 +459,8 @@ class AppController extends StateNotifier<ApplicationState> {
       senderName: data.owner.displayName,
       text: trimmed,
       createdAt: acceptedAt,
+      kind: kind,
+      localPath: localPath,
     );
     final relationshipAfterInput = activeRelationship.copyWith(
       replyEnergy: prompt.replyPlan.energy,
@@ -469,12 +489,6 @@ class AppController extends StateNotifier<ApplicationState> {
         config: data.settings.provider,
         apiKey: apiKey,
         messages: prompt.messages,
-        maxOutputTokens: switch (prompt.replyPlan.length) {
-          ReplyLength.oneWord => 24,
-          ReplyLength.short => 120,
-          ReplyLength.medium => 320,
-          ReplyLength.detailed => 900,
-        },
         abortTrigger: abort.future,
         onUpdate: (fullText) {
           if (!mounted ||
@@ -563,6 +577,111 @@ class AppController extends StateNotifier<ApplicationState> {
     if (shouldSummarize && mounted) {
       unawaited(_refreshConversationMemo(threadId, _lifecycleGeneration));
     }
+  }
+
+  /// Replays the latest user turn. This is used after a failed request where no
+  /// assistant message was persisted, so the user does not have to retype it.
+  Future<void> retryLastTurn(String threadId, {void Function()? onAccepted}) =>
+      _replayLastTurn(
+        threadId,
+        requireAssistantReply: false,
+        onAccepted: onAccepted,
+      );
+
+  /// Replaces the latest assistant response while keeping the same user turn.
+  Future<void> regenerateLastReply(
+    String threadId, {
+    void Function()? onAccepted,
+  }) => _replayLastTurn(
+    threadId,
+    requireAssistantReply: true,
+    onAccepted: onAccepted,
+  );
+
+  Future<void> _replayLastTurn(
+    String threadId, {
+    required bool requireAssistantReply,
+    void Function()? onAccepted,
+  }) async {
+    if (state.generatingThreadId != null || _activeGenerationAbort != null) {
+      return;
+    }
+    final data = state.data;
+    final thread = data.threads
+        .where((item) => item.id == threadId)
+        .firstOrNull;
+    if (thread == null) return;
+    final history =
+        data.messages
+            .where(
+              (message) => message.threadId == threadId && message.isRenderable,
+            )
+            .toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final userIndex = history.lastIndexWhere(
+      (message) => !message.fromAi && message.kind != MessageKind.system,
+    );
+    if (userIndex < 0) {
+      state = state.copyWith(error: '没有可以重试的用户消息');
+      return;
+    }
+    final user = history[userIndex];
+    final hasAssistantReply = history
+        .skip(userIndex + 1)
+        .any((message) => message.fromAi);
+    if (requireAssistantReply && !hasAssistantReply) {
+      state = state.copyWith(error: '上一条还没有生成可重新生成的回复');
+      return;
+    }
+
+    final apiKey = await _keyStore.read(
+      persistent: data.settings.provider.rememberKey,
+    );
+    if (!mounted) return;
+    if (apiKey == null ||
+        apiKey.trim().isEmpty ||
+        data.settings.provider.model.trim().isEmpty) {
+      state = state.copyWith(error: '请先配置 API Key、拉取并选择模型');
+      return;
+    }
+
+    final removedIds = {
+      for (var index = userIndex; index < history.length; index++)
+        history[index].id,
+    };
+    final remaining = data.messages
+        .where((message) => !removedIds.contains(message.id))
+        .toList();
+    final remainingInThread =
+        remaining.where((message) => message.threadId == threadId).toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final cursorRemoved =
+        thread.summarizedThroughMessageId != null &&
+        removedIds.contains(thread.summarizedThroughMessageId);
+    final replacementCursor = remainingInThread.lastOrNull?.id;
+
+    _commit(
+      data.copyWith(
+        messages: remaining,
+        threads: [
+          for (final item in data.threads)
+            if (item.id == threadId && cursorRemoved)
+              item.copyWith(
+                summarizedThroughMessageId: replacementCursor,
+                clearSummarizedThroughMessageId: replacementCursor == null,
+              )
+            else
+              item,
+        ],
+      ),
+    );
+    await sendMessage(
+      threadId,
+      user.text,
+      kind: user.kind,
+      localPath: user.localPath,
+      onAccepted: onAccepted,
+    );
   }
 
   /// Stop the active stream but keep any text already produced as a partial
@@ -1045,6 +1164,7 @@ class AppController extends StateNotifier<ApplicationState> {
     ++_lifecycleGeneration;
     _summaryRetryAfter.clear();
     _saveTimer?.cancel();
+    await _attachmentStore?.clear();
     await _keyStore.clear();
     await _store.clear();
     _hasApiKey = false;

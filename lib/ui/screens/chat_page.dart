@@ -5,8 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../application/app_controller.dart';
+import '../../data/attachment_store.dart';
 import '../../domain/models.dart';
 import '../../domain/dialogue.dart';
 import 'package:forui/forui.dart';
@@ -110,6 +113,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     }
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final attachmentStore = ref.watch(attachmentStoreProvider);
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -180,6 +184,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             message: message,
                             character: character,
                             owner: data.owner,
+                            attachmentStore: attachmentStore,
                             onLongPress: () => _showMessageActions(
                               context,
                               message,
@@ -218,6 +223,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ],
             ),
           ),
+          if (state.error != null)
+            _ChatErrorBar(
+              message: state.error!,
+              onRetry: () => ref
+                  .read(appControllerProvider.notifier)
+                  .retryLastTurn(thread.id),
+              onDismiss: () =>
+                  ref.read(appControllerProvider.notifier).clearError(),
+            ),
           _ChatComposer(
             controller: _textController,
             focusNode: _focusNode,
@@ -244,12 +258,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               await future;
               if (!mounted) return;
               _sending = false;
-              final after = ref.read(appControllerProvider);
-              if (after.error != null && context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(after.error!)));
-              }
             },
             onCancel: () =>
                 ref.read(appControllerProvider.notifier).interruptGeneration(),
@@ -276,6 +284,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     Relationship relationship,
     Character character,
   ) {
+    final thread = data.threadForRelationship(relationship.id);
+    final threadMessages = thread == null
+        ? const <Message>[]
+        : (data.messages
+              .where((message) => message.threadId == thread.id)
+              .toList()
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt)));
+    final latest = threadMessages.lastOrNull;
     showDtSheet<void>(
       context: context,
       showDragHandle: true,
@@ -295,6 +311,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   context.push('/character/${character.id}');
                 },
               ),
+              if (thread != null && latest != null)
+                DtSettingRow(
+                  icon: Icons.refresh_rounded,
+                  iconColor: DtColors.mint,
+                  title: latest.fromAi ? '重新生成上一条' : '重试上一条',
+                  subtitle: latest.fromAi ? '替换最后一条角色回复' : '重新发送上一条消息',
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final controller = ref.read(appControllerProvider.notifier);
+                    if (latest.fromAi) {
+                      await controller.regenerateLastReply(thread.id);
+                    } else {
+                      await controller.retryLastTurn(thread.id);
+                    }
+                  },
+                ),
               DtSettingRow(
                 icon: Icons.psychology_alt_outlined,
                 title: '记忆管理',
@@ -342,6 +374,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DtSettingRow(
+                icon: Icons.photo_library_outlined,
+                iconColor: DtColors.violet,
+                title: '从相册发送图片',
+                subtitle: 'JPG、PNG、WebP 或 GIF，最大 12MB',
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              DtSettingRow(
+                icon: Icons.photo_camera_outlined,
+                iconColor: DtColors.brand,
+                title: '拍照发送',
+                subtitle: '调用系统相机，不会后台拍摄',
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              DtSettingRow(
                 icon: Icons.movie_filter_outlined,
                 iconColor: DtColors.brand,
                 title: '当前场景',
@@ -367,11 +419,137 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 88,
+        maxWidth: 2048,
+      );
+      if (picked == null) return;
+      final length = await picked.length();
+      if (length > 12 * 1024 * 1024) {
+        _showImageError('图片超过 12MB，请先压缩后再发送');
+        return;
+      }
+      final mimeType = picked.mimeType ?? _imageMimeType(picked.name);
+      if (!_supportedImageTypes.contains(mimeType.toLowerCase())) {
+        _showImageError('仅支持 JPG、PNG、WebP 和 GIF 图片');
+        return;
+      }
+      final bytes = await picked.readAsBytes();
+      final store = ref.read(attachmentStoreProvider);
+      final reference = await store.saveImage(
+        id: const Uuid().v4(),
+        bytes: bytes,
+        mimeType: mimeType,
+      );
+      if (!mounted) return;
+      _showImageComposer(reference, bytes);
+    } catch (error) {
+      _showImageError('无法读取图片：$error');
+    }
+  }
+
+  void _showImageError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showImageComposer(String reference, Uint8List bytes) {
+    final caption = TextEditingController();
+    showDtSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          MediaQuery.viewInsetsOf(sheetContext).bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '发送图片',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                bytes,
+                width: double.infinity,
+                height: 240,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            DtTextField(
+              controller: caption,
+              minLines: 1,
+              maxLines: 4,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: '加一句话，或者直接发送……'),
+            ),
+            const SizedBox(height: 12),
+            DtButton(
+              label: '发送',
+              icon: Icons.arrow_upward_rounded,
+              onPressed: () async {
+                final text = caption.text.trim();
+                Navigator.pop(sheetContext);
+                await ref
+                    .read(appControllerProvider.notifier)
+                    .sendMessage(
+                      widget.threadId,
+                      text,
+                      kind: MessageKind.image,
+                      localPath: reference,
+                    );
+              },
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(caption.dispose);
+  }
+
+  static const _supportedImageTypes = {
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+  };
+
+  String _imageMimeType(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
+  }
+
   void _showMessageActions(
     BuildContext context,
     Message message,
     Relationship relationship,
   ) {
+    final threadMessages =
+        ref
+            .read(appControllerProvider)
+            .data
+            .messages
+            .where((item) => item.threadId == message.threadId)
+            .toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final isLatest = threadMessages.lastOrNull?.id == message.id;
     showDtSheet<void>(
       context: context,
       showDragHandle: true,
@@ -382,6 +560,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (isLatest)
+                DtSettingRow(
+                  icon: Icons.refresh_rounded,
+                  iconColor: DtColors.mint,
+                  title: message.fromAi ? '重新生成这条回复' : '重试生成',
+                  subtitle: message.fromAi ? '替换这条角色回复' : '重新请求角色回复',
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final controller = ref.read(appControllerProvider.notifier);
+                    if (message.fromAi) {
+                      await controller.regenerateLastReply(message.threadId);
+                    } else {
+                      await controller.retryLastTurn(message.threadId);
+                    }
+                  },
+                ),
               DtSettingRow(
                 icon: Icons.copy_rounded,
                 title: '复制文本',
@@ -565,16 +759,27 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.character,
     required this.owner,
+    required this.attachmentStore,
     required this.onLongPress,
   });
   final Message message;
   final Character character;
   final OwnerProfile owner;
+  final AttachmentStore attachmentStore;
   final VoidCallback onLongPress;
   @override
   Widget build(BuildContext context) {
     if (!message.isRenderable) return const SizedBox.shrink();
     final mine = !message.fromAi;
+    if (message.kind == MessageKind.image && message.localPath != null) {
+      return _ImageMessageBubble(
+        message: message,
+        character: character,
+        owner: owner,
+        attachmentStore: attachmentStore,
+        onLongPress: onLongPress,
+      );
+    }
     final segments = mine
         ? [
             DialogueSegment(
@@ -679,6 +884,166 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
+class _ImageMessageBubble extends StatelessWidget {
+  const _ImageMessageBubble({
+    required this.message,
+    required this.character,
+    required this.owner,
+    required this.attachmentStore,
+    required this.onLongPress,
+  });
+
+  final Message message;
+  final Character character;
+  final OwnerProfile owner;
+  final AttachmentStore attachmentStore;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final mine = !message.fromAi;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        mainAxisAlignment: mine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!mine) ...[
+            DtAvatar(
+              name: character.name,
+              color: character.avatarColor,
+              size: 36,
+            ),
+            const SizedBox(width: 9),
+          ],
+          Flexible(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * .73,
+              ),
+              child: DtPressable(
+                onLongPress: onLongPress,
+                semanticLabel: '图片消息，长按操作',
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: mine
+                        ? DtColors.violet
+                        : (dark ? DtColors.darkSurface : DtColors.surface),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _StoredImage(
+                        store: attachmentStore,
+                        reference: message.localPath!,
+                      ),
+                      if (message.text.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
+                          child: Text(
+                            message.text,
+                            style: TextStyle(
+                              color: mine ? Colors.white : null,
+                              fontSize: 15.5,
+                              height: 1.45,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (mine) ...[
+            const SizedBox(width: 9),
+            DtAvatar(
+              name: owner.displayName,
+              color: owner.avatarColor,
+              size: 36,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StoredImage extends StatefulWidget {
+  const _StoredImage({required this.store, required this.reference});
+
+  final AttachmentStore store;
+  final String reference;
+
+  @override
+  State<_StoredImage> createState() => _StoredImageState();
+}
+
+class _StoredImageState extends State<_StoredImage> {
+  late Future<Uint8List?> _image = widget.store.readImage(widget.reference);
+
+  @override
+  void didUpdateWidget(covariant _StoredImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reference != widget.reference ||
+        oldWidget.store != widget.store) {
+      _image = widget.store.readImage(widget.reference);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
+    future: _image,
+    builder: (context, snapshot) {
+      final bytes = snapshot.data;
+      if (bytes != null) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(9),
+          child: Image.memory(
+            key: const ValueKey('message-image'),
+            bytes,
+            width: 220,
+            height: 220,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+          ),
+        );
+      }
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(
+          width: 220,
+          height: 160,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          alignment: Alignment.center,
+          child: const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        );
+      }
+      return Container(
+        width: 220,
+        height: 120,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        alignment: Alignment.center,
+        child: const Text('图片已失效', style: TextStyle(fontSize: 12)),
+      );
+    },
+  );
+}
+
 class _TypingIndicator extends StatelessWidget {
   const _TypingIndicator({required this.character});
   final Character character;
@@ -690,6 +1055,62 @@ class _TypingIndicator extends StatelessWidget {
       style: TextStyle(fontSize: 12, color: DtColors.textSecondary),
     ),
   );
+}
+
+class _ChatErrorBar extends StatelessWidget {
+  const _ChatErrorBar({
+    required this.message,
+    required this.onRetry,
+    required this.onDismiss,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF342127) : const Color(0xFFFFF1F2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: dark ? const Color(0xFF5E343D) : const Color(0xFFF4C9CF),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.error_outline_rounded,
+              size: 18,
+              color: Color(0xFFD85566),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(fontSize: 12.5, height: 1.45),
+            ),
+          ),
+          const SizedBox(width: 6),
+          DtActionButton(onPressed: onRetry, child: const Text('重试')),
+          IconButton(
+            tooltip: '关闭错误提示',
+            visualDensity: VisualDensity.compact,
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close_rounded, size: 17),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ChatComposer extends StatelessWidget {

@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dreamtide/app.dart';
 import 'package:dreamtide/application/app_controller.dart';
+import 'package:dreamtide/data/attachment_store.dart';
 import 'package:dreamtide/data/initial_data.dart';
 import 'package:dreamtide/domain/models.dart';
 import 'package:dreamtide/router/app_router.dart';
@@ -9,19 +13,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'fixtures/fake_store.dart';
 import 'fixtures/sample_data.dart';
 
-Future<ProviderContainer> start(WidgetTester tester, AppData data) async {
+Future<ProviderContainer> start(
+  WidgetTester tester,
+  AppData data, {
+  List<Override> overrides = const [],
+}) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   final container = ProviderContainer(
     overrides: [
+      ...overrides,
       appControllerProvider.overrideWith(
         (ref) =>
             AppController(store: FakeStore(data), keyStore: FakeKeyStore()),
       ),
     ],
   );
+
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -32,7 +42,60 @@ Future<ProviderContainer> start(WidgetTester tester, AppData data) async {
   return container;
 }
 
+class _FakeAttachmentStore implements AttachmentStore {
+  static final _pixel = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  );
+
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<Uint8List?> readImage(String reference) async => _pixel;
+
+  @override
+  Future<String> saveImage({
+    required String id,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async => id;
+}
+
 void main() {
+  testWidgets('image messages render from the attachment store', (
+    tester,
+  ) async {
+    final fixture = buildSeedData();
+    final image = Message(
+      id: 'image-message',
+      threadId: 'thread_gu',
+      senderId: 'owner',
+      senderName: fixture.owner.displayName,
+      text: '像不像下雨的晚上',
+      createdAt: DateTime.now(),
+      kind: MessageKind.image,
+      localPath: 'image-reference',
+    );
+    final container = await start(
+      tester,
+      fixture.copyWith(
+        messages: [image],
+        settings: fixture.settings.copyWith(ageConfirmed: true),
+      ),
+      overrides: [
+        attachmentStoreProvider.overrideWithValue(_FakeAttachmentStore()),
+      ],
+    );
+    container.read(appRouterProvider).push('/chat/thread_gu');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('message-image')), findsOneWidget);
+    expect(find.text('像不像下雨的晚上'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+  });
+
   testWidgets(
     'first adult confirmation opens a clean app and all three empty roots',
     (tester) async {

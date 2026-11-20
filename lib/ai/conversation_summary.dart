@@ -86,11 +86,15 @@ class ConversationSummaryWindow {
 
   String toTranscript() => jsonEncode([
     for (final message in messages)
-      if (message.text.trim().isNotEmpty)
+      if (message.text.trim().isNotEmpty || message.kind == MessageKind.image)
         {
           'id': message.id,
           'speaker': message.fromAi ? '角色' : '用户',
-          'text': _boundedText(message.text),
+          'text': _boundedText(
+            message.kind == MessageKind.image
+                ? '[图片]${message.text.trim().isEmpty ? '' : ' ${message.text}'}'
+                : message.text,
+          ),
         },
   ]);
 

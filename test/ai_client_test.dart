@@ -230,6 +230,91 @@ void main() {
     },
   );
 
+  test('reasoning-only stream automatically retries with a larger budget', () async {
+    var calls = 0;
+    final budgets = <int>[];
+    final ai = AiClient(
+      client: MockClient((request) async {
+        calls++;
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        budgets.add(body['max_tokens'] as int);
+        if (calls == 1) {
+          return http.Response(
+            'data: {"choices":[{"delta":{"content":"","reasoning_content":"先想一下怎么回答"},"finish_reason":null}]}\n\n'
+            'data: {"choices":[{"delta":{"content":""},"finish_reason":"length"}]}\n\n'
+            'data: [DONE]\n\n',
+            200,
+            headers: {'content-type': 'text/event-stream; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          'data: {"choices":[{"delta":{"content":"你好"},"finish_reason":null}]}\n\n'
+          'data: {"choices":[{"delta":{"content":""},"finish_reason":"stop"}]}\n\n'
+          'data: [DONE]\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }),
+    );
+    final updates = <String>[];
+    final reply = await ai.streamReply(
+      config: const ProviderConfig(
+        kind: ProviderKind.openaiCompatible,
+        baseUrl: 'https://provider.test',
+        model: 'reasoning-model',
+      ),
+      apiKey: 'test-key',
+      messages: const [PromptMessage('user', '你好')],
+      maxOutputTokens: 24,
+      onUpdate: updates.add,
+    );
+
+    expect(reply, '你好');
+    expect(calls, 2);
+    expect(budgets.first, 24);
+    expect(budgets.last, greaterThanOrEqualTo(1536));
+    expect(updates, ['你好']);
+    ai.close();
+  });
+
+  test('OpenAI endpoint accepts a non-stream JSON completion', () async {
+    final ai = AiClient(
+      client: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body.containsKey('max_tokens'), isFalse);
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'choices': [
+                {
+                  'message': {'role': 'assistant', 'content': '普通 JSON 回复'},
+                  'finish_reason': 'stop',
+                },
+              ],
+            }),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final updates = <String>[];
+    final reply = await ai.streamReply(
+      config: const ProviderConfig(
+        kind: ProviderKind.openaiCompatible,
+        baseUrl: 'https://provider.test',
+        model: 'compatible-model',
+      ),
+      apiKey: 'test-key',
+      messages: const [PromptMessage('user', '你好')],
+      onUpdate: updates.add,
+    );
+
+    expect(reply, '普通 JSON 回复');
+    expect(updates, ['普通 JSON 回复']);
+    ai.close();
+  });
+
   test(
     'memory facts require a known source and cannot create user boundaries',
     () async {

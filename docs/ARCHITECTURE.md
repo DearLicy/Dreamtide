@@ -82,6 +82,8 @@ V2.0 不引入向量数据库。检索顺序：
 
 原生端当前使用 `sqflite` 保存版本化 `AppData` JSON 和 FTS5 记忆索引。Web 使用浏览器本地存储。
 
+聊天图片通过独立 `AttachmentStore` 保存：原生端写入应用支持目录，Web 写入 IndexedDB。消息只保存不透明附件引用，避免把图片 Base64 塞进 SQLite/SharedPreferences。清空本地数据时同步清理附件库。
+
 V2.0.2 计划在原生端接入 SQLCipher，并把应用锁、数据库密钥和截图保护统一到原生安全模块。当前 API Key 已在原生端进入系统安全存储，普通备份不包含密钥。
 
 ## AI 供应商
@@ -91,6 +93,8 @@ V2.0.2 计划在原生端接入 SQLCipher，并把应用锁、数据库密钥和
 - OpenAI Chat Completions 兼容接口；
 - Anthropic Messages 接口；
 - SSE 流式增量；
+- OpenAI 兼容流可识别 `delta.content`、完整 `message.content`、普通 JSON 回包和只包含 `reasoning_content` 的推理模型；
+- OpenAI 兼容聊天默认省略 `max_tokens`，长度由提示词规划而非正文截断控制；
 - 错误统一收束为角色消息与可见错误提示。
 
 请求路径：

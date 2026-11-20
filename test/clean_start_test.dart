@@ -151,7 +151,7 @@ class DeferredAi extends AiClient {
     required String apiKey,
     required List<PromptMessage> messages,
     required void Function(String) onUpdate,
-    int maxOutputTokens = 420,
+    int? maxOutputTokens,
     Future<void>? abortTrigger,
   }) async => reply.future;
 }
