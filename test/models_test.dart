@@ -28,6 +28,10 @@ void main() {
         source.relationships.first.copyWith(
           replyEnergy: 32,
           lastInteractionAt: memoDate,
+          interactionCount: 7,
+          lastMetricDelta: const {'好感': 2, '信任': 1},
+          lastMetricReason: '你分享了真实近况',
+          lastMetricMessageId: 'message-42',
         ),
         ...source.relationships.skip(1),
       ],
@@ -48,6 +52,10 @@ void main() {
     expect(restored.characters.first.personalPreferences, '不喜欢香菜。');
     expect(restored.relationships.first.replyEnergy, 32);
     expect(restored.relationships.first.lastInteractionAt, memoDate);
+    expect(restored.relationships.first.interactionCount, 7);
+    expect(restored.relationships.first.lastMetricDelta, {'好感': 2, '信任': 1});
+    expect(restored.relationships.first.lastMetricReason, '你分享了真实近况');
+    expect(restored.relationships.first.lastMetricMessageId, 'message-42');
   });
 
   test('empty messages are never renderable', () {

@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../ai/ai_client.dart';
 import '../ai/conversation_summary.dart';
 import '../ai/context_assembler.dart';
+import '../ai/relationship_dynamics.dart';
+import '../ai/repetition_guard.dart';
 import '../data/local_store.dart';
 import '../data/local_store_factory.dart';
 import '../data/provider_key_store.dart';
@@ -336,6 +338,7 @@ class AppController extends StateNotifier<ApplicationState> {
     String text, {
     MessageKind kind = MessageKind.text,
     String? localPath,
+    String? userMessageId,
     void Function()? onAccepted,
   }) async {
     final trimmed = text.trim();
@@ -453,7 +456,7 @@ class AppController extends StateNotifier<ApplicationState> {
     );
     final acceptedAt = DateTime.now();
     final userMessage = Message(
-      id: _uuid.v4(),
+      id: userMessageId ?? _uuid.v4(),
       threadId: threadId,
       senderId: data.owner.id,
       senderName: data.owner.displayName,
@@ -484,80 +487,181 @@ class AppController extends StateNotifier<ApplicationState> {
     final generation = epoch;
     String? aiMessageId;
     var shouldSummarize = false;
+    final recentAssistantMessages =
+        data.messages
+            .where(
+              (message) =>
+                  message.threadId == threadId &&
+                  message.fromAi &&
+                  message.isRenderable &&
+                  !message.interrupted,
+            )
+            .toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    void updateAssistantPreview(String fullText) {
+      if (!mounted || generation != _generation || fullText.trim().isEmpty) {
+        return;
+      }
+      final current = state.data;
+      var messages = [...current.messages];
+      final existingIndex = aiMessageId == null
+          ? -1
+          : messages.indexWhere((e) => e.id == aiMessageId);
+      final visibleText = prompt.replyPlan.prepareText(fullText);
+      if (visibleText.isEmpty) return;
+      if (existingIndex >= 0) {
+        messages[existingIndex] = messages[existingIndex].copyWith(
+          text: visibleText,
+        );
+      } else {
+        aiMessageId = _uuid.v4();
+        messages.add(
+          Message(
+            id: aiMessageId!,
+            threadId: threadId,
+            senderId: activeCharacter.id,
+            senderName: activeCharacter.name,
+            text: visibleText,
+            createdAt: DateTime.now(),
+            fromAi: true,
+          ),
+        );
+        _activeAssistantMessageId = aiMessageId;
+      }
+      messages = messages.where((e) => e.isRenderable).toList();
+      state = state.copyWith(data: current.copyWith(messages: messages));
+    }
+
     try {
       final reply = await _aiClient.streamReply(
         config: data.settings.provider,
         apiKey: apiKey,
         messages: prompt.messages,
         abortTrigger: abort.future,
-        onUpdate: (fullText) {
-          if (!mounted ||
-              generation != _generation ||
-              fullText.trim().isEmpty) {
-            return;
-          }
-          final current = state.data;
-          var messages = [...current.messages];
-          final existingIndex = aiMessageId == null
-              ? -1
-              : messages.indexWhere((e) => e.id == aiMessageId);
-          final visibleText = prompt.replyPlan.prepareText(fullText);
-          if (visibleText.isEmpty) return;
-          if (existingIndex >= 0) {
-            messages[existingIndex] = messages[existingIndex].copyWith(
-              text: visibleText,
-            );
-          } else {
-            aiMessageId = _uuid.v4();
-            messages.add(
-              Message(
-                id: aiMessageId!,
-                threadId: threadId,
-                senderId: activeCharacter.id,
-                senderName: activeCharacter.name,
-                text: visibleText,
-                createdAt: DateTime.now(),
-                fromAi: true,
-              ),
-            );
-            _activeAssistantMessageId = aiMessageId;
-          }
-          messages = messages.where((e) => e.isRenderable).toList();
-          state = state.copyWith(data: current.copyWith(messages: messages));
-        },
+        onUpdate: updateAssistantPreview,
       );
 
       if (!mounted || generation != _generation) return;
-      final naturalReply = prompt.replyPlan.prepareText(reply);
+      var naturalReply = prompt.replyPlan.prepareText(reply);
+      if (naturalReply.isEmpty) {
+        throw const AiClientException('模型没有生成可见的聊天内容');
+      }
+
+      final repetition = RepetitionGuard.find(
+        candidate: naturalReply,
+        recentAssistantMessages: recentAssistantMessages.reversed,
+      );
+      if (repetition != null) {
+        final avoidLines = <String>[
+          for (final message in recentAssistantMessages.reversed.take(4))
+            '- ${message.text}',
+          '- 本轮草稿：$naturalReply',
+        ].join('\n');
+        final rewriteMessages = [
+          PromptMessage(
+            'system',
+            '${prompt.messages.first.content}\n\n'
+                '【内部重写要求】上一版草稿与近期回复高度相似。重新回答本轮，'
+                '必须换掉相同开场、句式、比喻、动作和收尾；不要解释重写，'
+                '不要复述旧话，直接输出新的角色回复。\n$avoidLines',
+          ),
+          ...prompt.messages.skip(1),
+        ];
+        try {
+          final rewritten = await _aiClient.streamReply(
+            config: data.settings.provider,
+            apiKey: apiKey,
+            messages: rewriteMessages,
+            abortTrigger: abort.future,
+            onUpdate: updateAssistantPreview,
+          );
+          if (!mounted || generation != _generation) return;
+          final rewrittenText = prompt.replyPlan.prepareText(rewritten);
+          final rewrittenSimilarity = RepetitionGuard.similarity(
+            rewrittenText,
+            naturalReply,
+          );
+          final stillRepeated =
+              RepetitionGuard.find(
+                candidate: rewrittenText,
+                recentAssistantMessages: recentAssistantMessages.reversed,
+              ) !=
+              null;
+          if (rewrittenText.isNotEmpty &&
+              rewrittenSimilarity < 0.82 &&
+              !stillRepeated) {
+            naturalReply = rewrittenText;
+          }
+        } catch (_) {
+          // Keep the original completed reply when the silent rewrite fails.
+        }
+      }
+
+      if (!mounted || generation != _generation) return;
       final current = state.data;
       final messages = [...current.messages];
       final existingIndex = aiMessageId == null
           ? -1
           : messages.indexWhere((e) => e.id == aiMessageId);
-      if (reply.trim().isNotEmpty) {
-        if (existingIndex >= 0) {
-          messages[existingIndex] = messages[existingIndex].copyWith(
+      if (existingIndex >= 0) {
+        messages[existingIndex] = messages[existingIndex].copyWith(
+          text: naturalReply,
+        );
+      } else {
+        aiMessageId = _uuid.v4();
+        messages.add(
+          Message(
+            id: aiMessageId!,
+            threadId: threadId,
+            senderId: activeCharacter.id,
+            senderName: activeCharacter.name,
             text: naturalReply,
-          );
-        } else {
-          aiMessageId = _uuid.v4();
-          messages.add(
-            Message(
-              id: aiMessageId!,
-              threadId: threadId,
-              senderId: activeCharacter.id,
-              senderName: activeCharacter.name,
-              text: naturalReply,
-              createdAt: DateTime.now(),
-              fromAi: true,
-            ),
-          );
-        }
+            createdAt: DateTime.now(),
+            fromAi: true,
+          ),
+        );
       }
+
+      final currentThread = current.threads
+          .where((item) => item.id == threadId)
+          .firstOrNull;
+      final currentRelationship = currentThread == null
+          ? null
+          : current.relationshipForThread(currentThread);
+      final now = DateTime.now();
+      final adjustment = currentRelationship == null
+          ? null
+          : RelationshipDynamics.evaluate(
+              relationship: currentRelationship,
+              userText: promptInput,
+              assistantReply: naturalReply,
+              userMessageId: userMessage.id,
+              isImage: isImage,
+            );
+      final updatedRelationship =
+          currentRelationship == null || adjustment == null
+          ? null
+          : currentRelationship.copyWith(
+              metrics: adjustment.metrics,
+              stage: adjustment.stage,
+              interactionCount:
+                  currentRelationship.interactionCount +
+                  (adjustment.changed ? 1 : 0),
+              lastMetricDelta: adjustment.changed
+                  ? adjustment.delta
+                  : currentRelationship.lastMetricDelta,
+              lastMetricReason: adjustment.changed
+                  ? adjustment.reason
+                  : currentRelationship.lastMetricReason,
+              lastMetricMessageId: userMessage.id,
+              updatedAt: now,
+            );
       _appendMessages(
         [],
         threadId,
         baseMessages: messages.where((e) => e.isRenderable).toList(),
+        relationshipUpdate: updatedRelationship,
       );
       shouldSummarize = true;
     } catch (error) {
@@ -680,6 +784,7 @@ class AppController extends StateNotifier<ApplicationState> {
       user.text,
       kind: user.kind,
       localPath: user.localPath,
+      userMessageId: user.id,
       onAccepted: onAccepted,
     );
   }

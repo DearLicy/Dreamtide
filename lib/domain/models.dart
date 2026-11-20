@@ -409,6 +409,10 @@ class Relationship {
     required this.updatedAt,
     this.replyEnergy = 55,
     this.lastInteractionAt,
+    this.interactionCount = 0,
+    this.lastMetricDelta = const {},
+    this.lastMetricReason = '',
+    this.lastMetricMessageId,
   });
 
   final String id;
@@ -424,6 +428,10 @@ class Relationship {
   /// Local conversational pace only; it is not a relationship score.
   final int replyEnergy;
   final DateTime? lastInteractionAt;
+  final int interactionCount;
+  final Map<String, int> lastMetricDelta;
+  final String lastMetricReason;
+  final String? lastMetricMessageId;
 
   Relationship copyWith({
     String? personaId,
@@ -436,6 +444,11 @@ class Relationship {
     int? replyEnergy,
     DateTime? lastInteractionAt,
     bool clearLastInteractionAt = false,
+    int? interactionCount,
+    Map<String, int>? lastMetricDelta,
+    String? lastMetricReason,
+    String? lastMetricMessageId,
+    bool clearLastMetricMessageId = false,
   }) => Relationship(
     id: id,
     characterId: characterId,
@@ -450,6 +463,12 @@ class Relationship {
     lastInteractionAt: clearLastInteractionAt
         ? null
         : lastInteractionAt ?? this.lastInteractionAt,
+    interactionCount: interactionCount ?? this.interactionCount,
+    lastMetricDelta: lastMetricDelta ?? this.lastMetricDelta,
+    lastMetricReason: lastMetricReason ?? this.lastMetricReason,
+    lastMetricMessageId: clearLastMetricMessageId
+        ? null
+        : lastMetricMessageId ?? this.lastMetricMessageId,
   );
 
   Map<String, dynamic> toJson() => {
@@ -464,6 +483,10 @@ class Relationship {
     'updatedAt': updatedAt.toIso8601String(),
     'replyEnergy': replyEnergy,
     'lastInteractionAt': lastInteractionAt?.toIso8601String(),
+    'interactionCount': interactionCount,
+    'lastMetricDelta': lastMetricDelta,
+    'lastMetricReason': lastMetricReason,
+    'lastMetricMessageId': lastMetricMessageId,
   };
 
   factory Relationship.fromJson(Map<String, dynamic> json) => Relationship(
@@ -487,6 +510,12 @@ class Relationship {
     lastInteractionAt: DateTime.tryParse(
       json['lastInteractionAt'] as String? ?? '',
     ),
+    interactionCount: (json['interactionCount'] as num?)?.toInt() ?? 0,
+    lastMetricDelta: Map<String, dynamic>.from(
+      json['lastMetricDelta'] as Map? ?? const {},
+    ).map((key, value) => MapEntry(key, (value as num?)?.toInt() ?? 0)),
+    lastMetricReason: json['lastMetricReason'] as String? ?? '',
+    lastMetricMessageId: json['lastMetricMessageId'] as String?,
   );
 }
 

@@ -96,6 +96,34 @@ void main() {
     container.dispose();
   });
 
+  testWidgets('relationship page shows the latest growth and reason', (
+    tester,
+  ) async {
+    final fixture = buildSeedData();
+    final relationship = fixture.relationships.first.copyWith(
+      interactionCount: 7,
+      lastMetricDelta: const {'好感': 2, '信任': 1},
+      lastMetricReason: '你分享了真实近况',
+    );
+    final container = await start(
+      tester,
+      fixture.copyWith(
+        relationships: [relationship, ...fixture.relationships.skip(1)],
+        settings: fixture.settings.copyWith(ageConfirmed: true),
+      ),
+    );
+    container.read(appRouterProvider).push('/character/char_gu');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('上轮变化'), findsOneWidget);
+    expect(find.textContaining('好感 +2'), findsOneWidget);
+    expect(find.text('你分享了真实近况'), findsOneWidget);
+    expect(find.text('已完成 7 轮关系互动'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+  });
+
   testWidgets(
     'first adult confirmation opens a clean app and all three empty roots',
     (tester) async {

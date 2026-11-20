@@ -90,8 +90,9 @@ void main() {
           if (body['stream'] == true) {
             mainRequests++;
             mainRequestBodies.add(body);
+            final reply = mainRequests == 1 ? '我记得，我们说好周末去看海。' : '去啊，别临时又赖床。';
             return http.Response(
-              'data: {"choices":[{"delta":{"content":"我记得，我们说好周末去看海。"}}]}\n\ndata: [DONE]\n\n',
+              'data: {"choices":[{"delta":{"content":"$reply"}}]}\n\ndata: [DONE]\n\n',
               200,
               headers: {'content-type': 'text/event-stream; charset=utf-8'},
             );
@@ -404,6 +405,126 @@ void main() {
       expect(sent.text, '像不像下雨的晚上');
       expect(ai.requests.last.last.content, contains('用户发送了一张图片'));
       expect(ai.requests.last.last.content, contains('下雨的晚上'));
+    },
+  );
+
+  test(
+    'completed conversations grow relationship metrics once per user turn',
+    () async {
+      final initial = buildSeedData();
+      final relationship = initial.relationshipForThread(
+        initial.threads.first,
+      )!;
+      final data = initial.copyWith(
+        settings: initial.settings.copyWith(
+          provider: const ProviderConfig(
+            kind: ProviderKind.openaiCompatible,
+            baseUrl: 'https://memory.test/v1',
+            model: 'memory-model',
+          ),
+        ),
+      );
+      final ai = _QueuedReplyAi(['先别逞强，过来坐会儿。', '行，那今晚什么都别想，我陪你安静一会儿。']);
+      final controller = AppController(
+        store: _MemoryStore(data),
+        keyStore: _MemoryKeyStore(),
+        aiClient: ai,
+      );
+      addTearDown(controller.dispose);
+      for (
+        var attempt = 0;
+        attempt < 20 && controller.state.loading;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      final threadId = data.threads.first.id;
+      await controller.sendMessage(threadId, '今天工作很累，说实话有点想你。');
+      final afterFirst = controller.state.data.relationships.firstWhere(
+        (item) => item.id == relationship.id,
+      );
+      expect(afterFirst.interactionCount, relationship.interactionCount + 1);
+      expect(
+        afterFirst.metrics['好感']!,
+        greaterThan(relationship.metrics['好感']!),
+      );
+      expect(
+        afterFirst.metrics['信任']!,
+        greaterThan(relationship.metrics['信任']!),
+      );
+      expect(
+        afterFirst.metrics['心动']!,
+        greaterThan(relationship.metrics['心动']!),
+      );
+      expect(afterFirst.lastMetricDelta, isNotEmpty);
+      expect(afterFirst.lastMetricReason, contains('真实近况'));
+
+      await controller.regenerateLastReply(threadId);
+      final afterRegenerate = controller.state.data.relationships.firstWhere(
+        (item) => item.id == relationship.id,
+      );
+      expect(afterRegenerate.interactionCount, afterFirst.interactionCount);
+      expect(afterRegenerate.metrics, afterFirst.metrics);
+      expect(afterRegenerate.lastMetricDelta, afterFirst.lastMetricDelta);
+      expect(afterRegenerate.lastMetricReason, afterFirst.lastMetricReason);
+      expect(ai.calls, 2);
+    },
+  );
+
+  test(
+    'a repeated model reply is silently rewritten before it is settled',
+    () async {
+      final initial = buildSeedData();
+      final repeated = '你总是这样，嘴上说着不在意，其实比谁都在乎。';
+      final oldReply = Message(
+        id: 'old-reply',
+        threadId: initial.threads.first.id,
+        senderId: 'char_gu',
+        senderName: '顾言',
+        text: repeated,
+        createdAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        fromAi: true,
+      );
+      final data = initial.copyWith(
+        messages: [...initial.messages, oldReply],
+        settings: initial.settings.copyWith(
+          provider: const ProviderConfig(
+            kind: ProviderKind.openaiCompatible,
+            baseUrl: 'https://memory.test/v1',
+            model: 'memory-model',
+          ),
+        ),
+      );
+      final ai = _QueuedReplyAi([repeated, '（把杯子推到你手边）行，这次不问了。先喝口水。']);
+      final controller = AppController(
+        store: _MemoryStore(data),
+        keyStore: _MemoryKeyStore(),
+        aiClient: ai,
+      );
+      addTearDown(controller.dispose);
+      for (
+        var attempt = 0;
+        attempt < 20 && controller.state.loading;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      await controller.sendMessage(initial.threads.first.id, '我又没说什么。');
+      expect(ai.calls, 2);
+      expect(ai.requests.last.first.content, contains('内部重写要求'));
+      final replies = controller.state.data.messages
+          .where(
+            (message) =>
+                message.threadId == initial.threads.first.id && message.fromAi,
+          )
+          .toList();
+      expect(
+        replies.where((message) => message.text == repeated),
+        hasLength(1),
+      );
+      expect(replies.last.text, contains('不问了'));
     },
   );
 }

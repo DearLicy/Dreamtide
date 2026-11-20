@@ -1,4 +1,5 @@
 import '../domain/models.dart';
+import 'relationship_dynamics.dart';
 import 'reply_planner.dart';
 
 class PromptMessage {
@@ -216,6 +217,29 @@ class ContextAssembler {
             (relationship.metrics['信任'] ?? 0) >= 55
         ? '彼此已有一定熟悉感'
         : '关系仍在建立中，保持相应距离';
+    final metricText = RelationshipDynamics.metricOrder
+        .map((key) => '$key ${(relationship.metrics[key] ?? 0).clamp(0, 100)}')
+        .join(' · ');
+    final recentAssistantReplies =
+        data.messages
+            .where(
+              (message) =>
+                  message.threadId == thread.id &&
+                  message.fromAi &&
+                  message.isRenderable &&
+                  !message.interrupted,
+            )
+            .toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final recentReplyStart = recentAssistantReplies.length > 4
+        ? recentAssistantReplies.length - 4
+        : 0;
+    final avoidRepeat = recentAssistantReplies.isEmpty
+        ? '还没有旧回复需要避开。'
+        : recentAssistantReplies
+              .skip(recentReplyStart)
+              .map((message) => '- ${bounded(message.text, 180)}')
+              .join('\n');
 
     final roleVoice = <String>[
       if (character.persona.trim().isNotEmpty) bounded(character.persona, 1600),
@@ -263,9 +287,16 @@ ${roleVoice.isEmpty ? '按已给资料和对话表达；不臆造角色经历、
 $personaText
 
 【关系与节奏】
-${relationship.stage}；称呼「${relationship.nickname}」；$relationshipLevel。回复能量 ${replyPlan.energy}/100 只影响本轮节奏，不代表好感/信任。${replyPlan.energy <= 28 ? '对方不想展开时收住，不追问或索取安慰。' : ''}
+${relationship.stage}；称呼「${relationship.nickname}」；$relationshipLevel。
+关系内部状态：$metricText。数值只用于调整说话距离和主动性，绝不能向用户报数或把关系说成任务进度。
+${relationship.lastMetricReason.isEmpty ? '' : '上轮关系变化依据：${bounded(relationship.lastMetricReason, 160)}。'}
+回复能量 ${replyPlan.energy}/100 只影响本轮节奏，不代表好感/信任。${replyPlan.energy <= 28 ? '对方不想展开时收住，不追问或索取安慰。' : ''}
 $absenceHint
 ${replyPlan.toPromptInstruction()}
+
+【避免复读】
+下面是最近几轮已经说过的表达。不要复用相同开场、句子结构、比喻、动作和收尾；如果一句短回应已经出现过，就换一个真实反应，必要时保持沉默。也不要总结“我们刚刚聊了什么”。
+$avoidRepeat
 
 【当前场景】
 $sceneText。动作/心理旁白可用括号，但不要为了气氛每条都写旁白。

@@ -257,6 +257,12 @@ class _RelationshipPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final deltas = relationship.lastMetricDelta.entries
+        .where((entry) => entry.value != 0)
+        .map(
+          (entry) => '${entry.key} ${entry.value > 0 ? '+' : ''}${entry.value}',
+        )
+        .join(' · ');
     return DtSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,6 +363,51 @@ class _RelationshipPanel extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            decoration: BoxDecoration(
+              color: dark ? const Color(0xFF202636) : const Color(0xFFF5F3FC),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  deltas.isEmpty ? '关系会随真实互动自然变化' : '上轮变化 · $deltas',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: dark ? const Color(0xFFCBC4F7) : DtColors.violet,
+                  ),
+                ),
+                if (relationship.lastMetricReason.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    relationship.lastMetricReason,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      height: 1.45,
+                      color: dark
+                          ? const Color(0xFF9199AA)
+                          : const Color(0xFF7D8494),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 3),
+                Text(
+                  '已完成 ${relationship.interactionCount} 轮关系互动',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    color: dark
+                        ? const Color(0xFF6E778B)
+                        : const Color(0xFF9CA3B2),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

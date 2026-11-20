@@ -22,6 +22,8 @@ void main() {
       expect(system.indexOf('平台安全规则'), lessThan(system.indexOf('AI 角色')));
       expect(system.indexOf('禁止：'), lessThan(system.indexOf('连续性备忘')));
       expect(system, contains('亲密推进必须明确、自愿、可随时撤回'));
+      expect(system, contains('关系内部状态'));
+      expect(system, contains('避免复读'));
       expect(bundle.usedMemoryIds, contains('mem_3'));
       expect(bundle.usedMemoryIds.length, lessThanOrEqualTo(3));
       expect(bundle.messages.last.content, contains('工作很累'));
