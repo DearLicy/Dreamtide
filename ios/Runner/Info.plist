@@ -44,7 +44,7 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>用于角色语音输入与未来的语音对话；录音默认只保存在本机。</string>
+	<string>用于你主动发起的语音输入。录音在本机内存中处理，结束时发给你配置的 DeepSeek 官方 ASR 接口转文字，不会自动发送聊天。</string>
 	<key>NSCameraUsageDescription</key>
 	<string>用于拍摄并发送用户主动选择的图片。</string>
 	<key>NSPhotoLibraryUsageDescription</key>

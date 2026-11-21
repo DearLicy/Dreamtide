@@ -32,9 +32,9 @@ class ConversationSummaryWindow {
     required this.lastMessageId,
   });
 
-  static const triggerUncoveredMessages = 12;
+  static const triggerUncoveredMessages = 6;
   static const keepRecentMessages = 8;
-  static const maxMessagesPerRequest = 16;
+  static const maxMessagesPerRequest = 20;
 
   final List<Message> messages;
   final String lastMessageId;

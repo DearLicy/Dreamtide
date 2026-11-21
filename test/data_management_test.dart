@@ -24,7 +24,8 @@ class _Attachments implements AttachmentStore {
   @override
   Future<void> clear() async {}
   @override
-  Future<Uint8List?> readImage(String reference) async => null;
+  Future<Uint8List?> readImage(String reference) async =>
+      MemoryAttachments.pixel;
   @override
   Future<String> saveImage({
     required String id,
@@ -200,7 +201,7 @@ Future<AppController> _start(
   final controller = AppController(
     store: store,
     keyStore: keys,
-    attachmentStore: attachments,
+    attachmentStore: attachments ?? _Attachments(),
     aiClient: ai,
   );
   addTearDown(controller.dispose);

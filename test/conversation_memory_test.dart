@@ -37,7 +37,7 @@ void main() {
   test(
     'summary window waits, compacts older turns, and keeps recent turns',
     () {
-      final messages = history('thread-a', 11);
+      final messages = history('thread-a', 5);
       expect(
         ConversationSummaryWindow.create(thread: thread(), source: messages),
         isNull,
