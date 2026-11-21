@@ -70,8 +70,6 @@ class _EditSheetState extends State<_EditSheet> {
         _status = DtButtonStatus.idle;
         _error = error is StateError
             ? error.message
-            : error is FormatException
-            ? error.message
             : error is ArgumentError
             ? '${error.message}'
             : '操作未完成，请重试。';

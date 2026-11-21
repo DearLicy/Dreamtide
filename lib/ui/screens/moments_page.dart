@@ -37,7 +37,6 @@ class MomentsPage extends ConsumerWidget {
                   semanticLabel: '打开个人资料',
                   child: DtAvatar(
                     name: data.owner.displayName,
-                    reference: data.owner.avatarReference,
                     color: data.owner.avatarColor,
                     size: 42,
                     showStatus: true,
@@ -81,12 +80,6 @@ class MomentsPage extends ConsumerWidget {
                   index: index,
                   child: _MomentCard(
                     moment: moment,
-                    avatarReference: moment.authorId == data.owner.id
-                        ? data.owner.avatarReference
-                        : data.characters
-                              .where((c) => c.id == moment.authorId)
-                              .firstOrNull
-                              ?.avatarReference,
                     ownerName: data.owner.displayName,
                     dark: dark,
                     onLike: () => ref
@@ -379,7 +372,6 @@ class MomentsPage extends ConsumerWidget {
 class _MomentCard extends StatelessWidget {
   const _MomentCard({
     required this.moment,
-    this.avatarReference,
     required this.ownerName,
     required this.dark,
     required this.onLike,
@@ -388,7 +380,6 @@ class _MomentCard extends StatelessWidget {
   });
 
   final Moment moment;
-  final String? avatarReference;
   final String ownerName;
   final bool dark;
   final VoidCallback onLike;
@@ -409,7 +400,6 @@ class _MomentCard extends StatelessWidget {
             children: [
               DtAvatar(
                 name: moment.authorName,
-                reference: avatarReference,
                 color: moment.avatarColor,
                 size: 44,
               ),

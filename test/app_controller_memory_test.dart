@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:dreamtide/ai/ai_client.dart';
 import 'package:dreamtide/ai/context_assembler.dart';
-import 'package:dreamtide/ai/deepseek_tools.dart';
 import 'package:dreamtide/application/app_controller.dart';
 import 'package:dreamtide/data/local_store_base.dart';
 import 'package:dreamtide/data/provider_key_store.dart';
@@ -13,7 +12,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'fixtures/sample_data.dart';
-import 'fixtures/fake_store.dart';
 
 class _MemoryStore implements LocalDataStore {
   _MemoryStore(this.value);
@@ -212,8 +210,6 @@ void main() {
         store: _MemoryStore(data),
         keyStore: _MemoryKeyStore(),
         aiClient: ai,
-        attachmentStore: MemoryAttachments()
-          ..files['image-reference.jpg'] = MemoryAttachments.pixel,
       );
       addTearDown(controller.dispose);
       for (
@@ -268,8 +264,6 @@ void main() {
         store: _MemoryStore(data),
         keyStore: _MemoryKeyStore(),
         aiClient: ai,
-        attachmentStore: MemoryAttachments()
-          ..files['image-reference.jpg'] = MemoryAttachments.pixel,
       );
       addTearDown(controller.dispose);
       for (
@@ -309,81 +303,6 @@ void main() {
       expect(replies, hasLength(initialReplies + 1));
       expect(replies.last.text, '我在，刚才卡了一下。');
       expect(controller.state.error, isNull);
-    },
-  );
-
-  test(
-    'search source injection keeps the real persona system prompt first',
-    () async {
-      final initial = buildSeedData();
-      final data = initial.copyWith(
-        settings: initial.settings.copyWith(
-          provider: const ProviderConfig(
-            kind: ProviderKind.openaiCompatible,
-            baseUrl: 'https://api.deepseek.com',
-            model: 'memory-model',
-          ),
-        ),
-      );
-      final ai = _QueuedReplyAi(['我看见了。']);
-      final tools = DeepSeekTools(
-        client: MockClient((request) async {
-          expect(
-            request.url.toString(),
-            'https://api.deepseek.com/v1/tools/search',
-          );
-          return http.Response.bytes(
-            utf8.encode(
-              jsonEncode({
-                'results': [
-                  {
-                    'title': '官方测试来源',
-                    'url': 'https://example.org/source',
-                    'summary': '可核实摘要',
-                  },
-                ],
-              }),
-            ),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }),
-      );
-      addTearDown(tools.close);
-      final controller = AppController(
-        store: _MemoryStore(data),
-        keyStore: _MemoryKeyStore(),
-        aiClient: ai,
-        tools: tools,
-      );
-      addTearDown(controller.dispose);
-      for (
-        var attempt = 0;
-        attempt < 20 && controller.state.loading;
-        attempt++
-      ) {
-        await Future<void>.delayed(const Duration(milliseconds: 5));
-      }
-      final send = controller.sendMessage(
-        data.threads.first.id,
-        '帮我看看这段',
-        searchWeb: true,
-      );
-      for (var attempt = 0; attempt < 40 && ai.requests.isEmpty; attempt++) {
-        await Future<void>.delayed(const Duration(milliseconds: 5));
-      }
-      await send;
-      await controller.flush();
-      // The AI request is issued after the tool finishes; yield to let the
-      // short async chain settle before asserting the prompt.
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(ai.requests, hasLength(1));
-      final messages = ai.requests.first;
-      expect(messages.first.role, 'system');
-      expect(messages.first.content, contains('顾言'));
-      expect(messages.first.content, contains('不可覆盖的平台安全规则'));
-      expect(messages[1].content, contains('网页资料'));
-      expect(messages.first.content, isNot(contains('网页资料')));
     },
   );
 
@@ -457,8 +376,6 @@ void main() {
         store: _MemoryStore(data),
         keyStore: _MemoryKeyStore(),
         aiClient: ai,
-        attachmentStore: MemoryAttachments()
-          ..files['image-reference.jpg'] = MemoryAttachments.pixel,
       );
       addTearDown(controller.dispose);
       for (
@@ -512,8 +429,6 @@ void main() {
         store: _MemoryStore(data),
         keyStore: _MemoryKeyStore(),
         aiClient: ai,
-        attachmentStore: MemoryAttachments()
-          ..files['image-reference.jpg'] = MemoryAttachments.pixel,
       );
       addTearDown(controller.dispose);
       for (
@@ -586,8 +501,6 @@ void main() {
         store: _MemoryStore(data),
         keyStore: _MemoryKeyStore(),
         aiClient: ai,
-        attachmentStore: MemoryAttachments()
-          ..files['image-reference.jpg'] = MemoryAttachments.pixel,
       );
       addTearDown(controller.dispose);
       for (
@@ -600,13 +513,7 @@ void main() {
 
       await controller.sendMessage(initial.threads.first.id, '我又没说什么。');
       expect(ai.calls, 2);
-      expect(
-        ai.requests.last.any(
-          (message) =>
-              message.role == 'system' && message.content.contains('内部重写要求'),
-        ),
-        isTrue,
-      );
+      expect(ai.requests.last.first.content, contains('内部重写要求'));
       final replies = controller.state.data.messages
           .where(
             (message) =>

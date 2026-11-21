@@ -1,6 +1,4 @@
 import '../components/dt_input.dart';
-import '../components/dt_avatar_editor.dart';
-import '../../data/image_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -29,12 +27,6 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
   late final TextEditingController _preferences;
   late int _color;
   String? _id;
-  late final String _draftId = 'persona_${const Uuid().v4()}';
-
-  AvatarChange? _avatarChange;
-  String? _avatarReference;
-  DtButtonStatus _saveStatus = DtButtonStatus.idle;
-  String? _saveError;
 
   @override
   void initState() {
@@ -51,7 +43,6 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
     _personality = TextEditingController(text: existing?.personality ?? '');
     _background = TextEditingController(text: existing?.background ?? '');
     _preferences = TextEditingController(text: existing?.preferences ?? '');
-    _avatarReference = existing?.avatarReference;
     _color = existing?.avatarColor ?? 0xFF8E72EA;
   }
 
@@ -79,21 +70,6 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Center(
-            child: DtAvatarEditor(
-              name: _name.text,
-              color: _color,
-              reference: _avatarReference,
-              change: _avatarChange,
-              onChanged: (change) => setState(() => _avatarChange = change),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_saveError != null)
-            Text(
-              _saveError!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
           DtSurface(
             child: Column(
               children: [
@@ -155,49 +131,27 @@ class _PersonaEditorPageState extends ConsumerState<PersonaEditorPage> {
           const SizedBox(height: 18),
           DtButton(
             label: '保存梦设',
-            status: _saveStatus,
-            successText: '已保存',
-            onPressed: () async {
-              if (_saveStatus != DtButtonStatus.idle) return;
-              setState(() {
-                _saveStatus = DtButtonStatus.loading;
-                _saveError = null;
-              });
-              try {
-                final persona = UserPersona(
-                  id: _id ?? _draftId,
-                  avatarReference: _avatarReference,
-                  name: _name.text.trim().isEmpty ? '未命名梦设' : _name.text.trim(),
-                  age: _age.text.trim().isEmpty ? '成年' : _age.text.trim(),
-                  pronouns: _pronouns.text.trim().isEmpty
-                      ? '她'
-                      : _pronouns.text.trim(),
-                  appearance: _appearance.text.trim(),
-                  personality: _personality.text.trim(),
-                  background: _background.text.trim(),
-                  preferences: _preferences.text.trim(),
-                  avatarColor: _color,
-                );
-                await ref
+            onPressed: () {
+              final persona = UserPersona(
+                id: _id ?? 'persona_${const Uuid().v4()}',
+                name: _name.text.trim().isEmpty ? '未命名梦设' : _name.text.trim(),
+                age: _age.text.trim().isEmpty ? '成年' : _age.text.trim(),
+                pronouns: _pronouns.text.trim().isEmpty
+                    ? '她'
+                    : _pronouns.text.trim(),
+                appearance: _appearance.text.trim(),
+                personality: _personality.text.trim(),
+                background: _background.text.trim(),
+                preferences: _preferences.text.trim(),
+                avatarColor: _color,
+              );
+              ref.read(appControllerProvider.notifier).upsertPersona(persona);
+              if (_id == null) {
+                ref
                     .read(appControllerProvider.notifier)
-                    .savePersonaProfile(persona, avatar: _avatarChange);
-                if (_id == null) {
-                  ref
-                      .read(appControllerProvider.notifier)
-                      .selectPersona(persona.id);
-                }
-                if (!mounted) return;
-                setState(() => _saveStatus = DtButtonStatus.success);
-                await Future<void>.delayed(const Duration(milliseconds: 240));
-                if (mounted) Navigator.pop(this.context);
-              } catch (_) {
-                if (mounted) {
-                  setState(() {
-                    _saveStatus = DtButtonStatus.idle;
-                    _saveError = '梦设保存失败，请重试。';
-                  });
-                }
+                    .selectPersona(persona.id);
               }
+              Navigator.pop(context);
             },
           ),
         ],

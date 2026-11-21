@@ -50,7 +50,6 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
                   semanticLabel: '打开个人资料',
                   child: DtAvatar(
                     name: data.owner.displayName,
-                    reference: data.owner.avatarReference,
                     color: data.owner.avatarColor,
                     size: 42,
                     showStatus: true,
@@ -252,7 +251,6 @@ class _CharacterTile extends StatelessWidget {
           children: [
             DtAvatar(
               name: character.name,
-              reference: character.avatarReference,
               color: character.avatarColor,
               size: 54,
               showStatus: relationship != null,
@@ -445,7 +443,6 @@ class _RelationshipCard extends StatelessWidget {
             children: [
               DtAvatar(
                 name: character.name,
-                reference: character.avatarReference,
                 color: character.avatarColor,
                 size: 46,
               ),

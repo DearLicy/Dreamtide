@@ -308,7 +308,7 @@ class _ProviderPageState extends ConsumerState<ProviderPage> {
             ),
             const SizedBox(height: 16),
             const Text(
-              '聊天请求直接发送给你选择的供应商。图片会作为真实多模态输入，需选择支持识图的模型。联网搜索、OCR、语音转文字和朗读目前接入 DeepSeek 官方工具接口，使用同一个官方密钥；兼容服务商不会被当作官方工具使用。Dreamtide 不托管密钥或聊天内容。',
+              '聊天请求直接发送给你选择的供应商。Dreamtide 不托管密钥或聊天内容。',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.6,

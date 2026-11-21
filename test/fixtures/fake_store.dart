@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-import 'package:dreamtide/data/attachment_store_base.dart';
 import 'package:dreamtide/data/local_store_base.dart';
 import 'package:dreamtide/data/provider_key_store.dart';
 import 'package:dreamtide/domain/models.dart';
@@ -33,32 +30,5 @@ class FakeKeyStore extends ProviderKeyStore {
   @override
   Future<void> clear() async {
     value = null;
-  }
-}
-
-class MemoryAttachments implements AttachmentStore {
-  static final pixel = base64Decode(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-  );
-  final files = <String, Uint8List>{};
-  final deleted = <String>[];
-  @override
-  Future<void> clear() async => files.clear();
-  @override
-  Future<void> delete(String reference) async {
-    files.remove(reference);
-    deleted.add(reference);
-  }
-
-  @override
-  Future<Uint8List?> readImage(String reference) async => files[reference];
-  @override
-  Future<String> saveImage({
-    required String id,
-    required Uint8List bytes,
-    required String mimeType,
-  }) async {
-    files[id] = bytes;
-    return id;
   }
 }

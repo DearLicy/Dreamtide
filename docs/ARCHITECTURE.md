@@ -148,16 +148,3 @@ Android 已启用 `FLAG_SECURE`。iOS 快照隐私遮罩、通知、生物识别
 附件先保存引用变更再删除文件/IndexedDB 项，仍有引用的附件保留。保存失败时不删除附件；清理失败单独提示并在后续成功保存时重试。本次附件删除重试队列为运行期状态，进程异常退出后的孤儿文件扫描尚未实现。
 
 启动、成年确认和正式应用共用同一个 `MaterialApp.router`；加载时保留初始 deep link，防止 Web 刷新二级页面回到消息首页。数据管理、记录搜索等二级页面依然在 Shell 外。
-
-
-## V2.0.5 头像与多模态
-
-`OwnerProfile`、`UserPersona`、`Character` 增加可空 `avatarReference`；读取旧 V2 数据默认没有头像。`DtAvatar` 通过应用已有附件仓库加载，所有引用汇总在 `AppData.attachmentReferences`，替换、删除与导入使用同一引用清理规则。选择头像时只在本地编辑器裁切预览，保存才写附件。重置期间迟到的资料写入被生命周期代数拒绝。
-
-`PromptMessage` 同时保留纯文字与可选图片引用，在发送前由控制器读取并探测图片内容，编码为 OpenAI `image_url` 或 Anthropic `image`，不持久化 Base64。原始图片缺失明确报错，不声称模型已看图。整轮内联内容限制在供应商请求上限以下。
-
-`DeepSeekTools` 使用独立官方 Search/OCR/ASR/TTS endpoint，Bearer 鉴权，只接受配置为 HTTPS 官方域的工具请求。工具统一使用可中止 HTTP request、响应字节上限、总期限和无密钥的错误文本；取消面板、清除 Key、恢复与重置使迟到数据失效。搜索结果作为不可信引用进入本轮提示，`Message.sources` 和 `searchWeb` 保存来源和重试意图。
-
-`record` 的 PCM 流在内存封装 WAV，`audioplayers` 播放合成 WAV。两者在 Android/iOS 采用原生平台实现，Web 使用浏览器权限与音频能力；不把录音写到系统临时目录。前后台切换取消正在录制的输入。
-
-`dreamtide.media.v1` 完整备份包装原有 V2 数据与有大小限制的本地图片，恢复时先校验再写新引用，只重映射已知媒体字段。它是明文可携带备份；备份加密和大型文件打包未实现。

@@ -20,9 +20,12 @@ extension DataManagement on AppController {
   /// Commit the database first. A failed save must never destroy attachments
   /// still referenced by the last durable snapshot. Shared files stay alive.
   Future<void> _saveManagementChange(AppData before, AppData after) async {
-    final kept = after.attachmentReferences;
+    final kept = after.messages.map((m) => m.localPath).toSet();
     _pendingAttachmentDeletes.addAll(
-      before.attachmentReferences.where((path) => !kept.contains(path)),
+      before.messages
+          .map((m) => m.localPath)
+          .whereType<String>()
+          .where((path) => !kept.contains(path)),
     );
     _commit(after);
     try {
@@ -34,10 +37,10 @@ extension DataManagement on AppController {
   }
 
   Future<void> _cleanupAttachments(AppData durable) async {
-    final persisted = durable.attachmentReferences;
+    final persisted = durable.messages.map((m) => m.localPath).toSet();
     for (final reference in List<String>.of(_pendingAttachmentDeletes)) {
       if (persisted.contains(reference) ||
-          _snapshot.data.attachmentReferences.contains(reference)) {
+          _snapshot.data.messages.any((m) => m.localPath == reference)) {
         continue;
       }
       try {

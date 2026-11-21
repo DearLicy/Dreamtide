@@ -26,11 +26,8 @@ Future<ProviderContainer> start(
     overrides: [
       ...overrides,
       appControllerProvider.overrideWith(
-        (ref) => AppController(
-          store: FakeStore(data),
-          keyStore: FakeKeyStore(),
-          attachmentStore: ref.watch(attachmentStoreProvider),
-        ),
+        (ref) =>
+            AppController(store: FakeStore(data), keyStore: FakeKeyStore()),
       ),
     ],
   );

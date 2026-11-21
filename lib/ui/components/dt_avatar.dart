@@ -1,15 +1,6 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../application/app_controller.dart';
 
-final avatarBytesProvider = FutureProvider.autoDispose
-    .family<Uint8List?, String>(
-      (ref, reference) =>
-          ref.watch(attachmentStoreProvider).readImage(reference),
-    );
-
-class DtAvatar extends ConsumerWidget {
+class DtAvatar extends StatelessWidget {
   const DtAvatar({
     super.key,
     required this.name,
@@ -18,10 +9,8 @@ class DtAvatar extends ConsumerWidget {
     this.showStatus = false,
     this.statusColor = const Color(0xFF42C58A),
     this.heroTag,
-    this.reference,
   });
 
-  final String? reference;
   final String name;
   final int color;
   final double size;
@@ -30,7 +19,7 @@ class DtAvatar extends ConsumerWidget {
   final Object? heroTag;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final safeName = name.trim().isEmpty ? '梦' : name.trim();
     final start = Color(color);
     final end = Color.lerp(start, Colors.white, 0.34) ?? start;
@@ -56,26 +45,10 @@ class DtAvatar extends ConsumerWidget {
         ),
       ),
     );
-    final stored = reference == null
-        ? null
-        : ref.watch(avatarBytesProvider(reference!)).valueOrNull;
     final content = Stack(
       clipBehavior: Clip.none,
       children: [
-        if (stored == null)
-          avatar
-        else
-          ClipOval(
-            child: Image.memory(
-              stored,
-              key: ValueKey('avatar-$reference'),
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-              errorBuilder: (_, __, ___) => avatar,
-            ),
-          ),
+        avatar,
         if (showStatus)
           Positioned(
             right: 1,

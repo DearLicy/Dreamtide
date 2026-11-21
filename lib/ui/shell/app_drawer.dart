@@ -238,7 +238,6 @@ class _ProfileCard extends StatelessWidget {
           children: [
             DtAvatar(
               name: owner.displayName,
-              reference: owner.avatarReference,
               color: owner.avatarColor,
               size: 62,
               showStatus: true,

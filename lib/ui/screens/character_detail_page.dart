@@ -191,7 +191,6 @@ class _HeroCard extends StatelessWidget {
         children: [
           DtAvatar(
             name: character.name,
-            reference: character.avatarReference,
             color: character.avatarColor,
             size: 92,
             showStatus: true,
