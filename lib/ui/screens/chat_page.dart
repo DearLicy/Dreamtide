@@ -1,6 +1,10 @@
+import 'dart:async';
 import '../components/dt_sheet.dart';
 import '../components/dt_edit_sheet.dart';
 import '../components/dt_input.dart';
+import '../components/dt_voice_sheet.dart';
+import '../../data/image_content.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +39,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _nearBottom = true;
   String _lastContent = '';
   bool _sending = false;
+  bool _searchWeb = false;
+  bool _toolBusy = false;
+  String? _toolStatus;
+  final _toolsAbort = Completer<void>();
 
   @override
   void initState() {
@@ -48,6 +56,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   void dispose() {
+    if (!_toolsAbort.isCompleted) _toolsAbort.complete();
     _textController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -127,6 +136,33 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       ),
       body: Column(
         children: [
+          if (_searchWeb || _toolStatus != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  Icon(
+                    _toolBusy
+                        ? Icons.hourglass_top_rounded
+                        : Icons.travel_explore,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _toolStatus ?? '联网搜索已开启 · 发送时查询并附上来源',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  if (!_toolBusy)
+                    DtIconButton(
+                      icon: Icons.close,
+                      tooltip: '关闭联网搜索',
+                      onTap: () => setState(() => _searchWeb = false),
+                    ),
+                ],
+              ),
+            ),
           Expanded(
             child: Stack(
               children: [
@@ -184,7 +220,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           _MessageBubble(
                             message: message,
                             character: character,
-                            owner: data.owner,
+                            owner: data.owner.copyWith(
+                              displayName: data
+                                  .personaById(relationship.personaId)
+                                  ?.name,
+                              avatarReference: data
+                                  .personaById(relationship.personaId)
+                                  ?.avatarReference,
+                            ),
                             attachmentStore: attachmentStore,
                             onLongPress: () => _showMessageActions(
                               context,
@@ -192,6 +235,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               relationship,
                             ),
                           ),
+                          if (message.sources.isNotEmpty)
+                            DtActionButton(
+                              onPressed: () => _showSources(message),
+                              child: Text('联网来源 · ${message.sources.length}'),
+                            ),
                         ],
                       ),
                     );
@@ -246,6 +294,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               final future = controller.sendMessage(
                 thread.id,
                 text,
+                searchWeb: _searchWeb,
                 onAccepted: () {
                   if (!mounted) return;
                   _sending = false;
@@ -263,6 +312,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             onCancel: () =>
                 ref.read(appControllerProvider.notifier).interruptGeneration(),
             onMore: () => _showMoreActions(context, relationship),
+            onVoice: _voiceInput,
           ),
         ],
       ),
@@ -385,10 +435,37 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DtSettingRow(
+                icon: Icons.mic_none,
+                title: '语音转文字',
+                subtitle: '录音后识别，确认草稿再发送',
+                onTap: () {
+                  Navigator.pop(context);
+                  _voiceInput();
+                },
+              ),
+              DtSettingRow(
+                icon: Icons.document_scanner_outlined,
+                title: '识别图片文字',
+                subtitle: 'DeepSeek OCR，识别后可编辑',
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery, ocr: true);
+                },
+              ),
+              DtSettingRow(
+                icon: Icons.travel_explore,
+                title: _searchWeb ? '关闭联网搜索' : '开启联网搜索',
+                subtitle: '仅本聊天发送时检索，附上真实来源',
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _searchWeb = !_searchWeb);
+                },
+              ),
+              DtSettingRow(
                 icon: Icons.photo_library_outlined,
                 iconColor: DtColors.violet,
                 title: '从相册发送图片',
-                subtitle: 'JPG、PNG、WebP 或 GIF，最大 12MB',
+                subtitle: 'JPG、PNG、WebP 或 GIF，最大 10MB',
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);
@@ -430,7 +507,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _pickImage(ImageSource source, {bool ocr = false}) async {
     try {
       final picked = await ImagePicker().pickImage(
         source: source,
@@ -439,8 +516,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
       if (picked == null) return;
       final length = await picked.length();
-      if (length > 12 * 1024 * 1024) {
-        _showImageError('图片超过 12MB，请先压缩后再发送');
+      if (length > 10 * 1024 * 1024) {
+        _showImageError('图片超过 10MB，请先压缩后再发送');
         return;
       }
       final mimeType = picked.mimeType ?? _imageMimeType(picked.name);
@@ -449,6 +526,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return;
       }
       final bytes = await picked.readAsBytes();
+      final image = ImageContent.parse(bytes);
+      if (!mounted) return;
+      if (ocr) {
+        await _recognize(image);
+        return;
+      }
       final store = ref.read(attachmentStoreProvider);
       final reference = await store.saveImage(
         id: const Uuid().v4(),
@@ -462,6 +545,119 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  Future<void> _voiceInput() async {
+    final text = await showVoiceInput(context);
+    if (!mounted || text == null) return;
+    _textController.text = _textController.text.trim().isEmpty
+        ? text
+        : '${_textController.text}\n$text';
+    _focusNode.requestFocus();
+  }
+
+  Future<void> _recognize(ImageContent image) async {
+    if (_toolBusy) return;
+    final thread = ref
+        .read(appControllerProvider)
+        .data
+        .threads
+        .where((t) => t.id == widget.threadId)
+        .firstOrNull;
+    setState(() {
+      _toolBusy = true;
+      _toolStatus = '正在识别图片文字…';
+    });
+    try {
+      final result = await ref
+          .read(appControllerProvider.notifier)
+          .recognizeImage(image, abortTrigger: _toolsAbort.future);
+      if (!mounted ||
+          !identical(
+            thread,
+            ref
+                .read(appControllerProvider)
+                .data
+                .threads
+                .where((t) => t.id == widget.threadId)
+                .firstOrNull,
+          )) {
+        return;
+      }
+      if (result.text.isEmpty) {
+        _showImageError('图片中没有识别到文字。');
+        return;
+      }
+      await showDtEditSheet(
+        context: context,
+        title: '识别结果',
+        description: result.incomplete
+            ? '部分内容达到识别上限，请检查补全后再使用。'
+            : '检查文字后填入草稿，不会自动发送。',
+        initialText: result.text,
+        actionLabel: '填入输入框',
+        onSubmit: (text) async {
+          _textController.text = text;
+          _focusNode.requestFocus();
+        },
+      );
+    } catch (error) {
+      if (mounted) _showImageError(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _toolBusy = false;
+          _toolStatus = null;
+        });
+      }
+    }
+  }
+
+  void _showSources(Message message) {
+    showDtSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '联网来源',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              for (var i = 0; i < message.sources.length; i++)
+                DtSettingRow(
+                  icon: Icons.open_in_new,
+                  title: '[${i + 1}] ${message.sources[i].title}',
+                  subtitle: message.sources[i].url,
+                  onTap: () async {
+                    final uri = Uri.tryParse(message.sources[i].url);
+                    if (uri == null ||
+                        !['https', 'http'].contains(uri.scheme) ||
+                        uri.userInfo.isNotEmpty) {
+                      return;
+                    }
+                    try {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('无法打开来源链接')),
+                        );
+                      }
+                    }
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showImageError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -471,6 +667,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   void _showImageComposer(String reference, Uint8List bytes) {
     final caption = TextEditingController();
+    final store = ref.read(attachmentStoreProvider);
+    var handedOff = false;
     showDtSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -515,7 +713,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               icon: Icons.arrow_upward_rounded,
               onPressed: () async {
                 final text = caption.text.trim();
+                handedOff = true;
                 Navigator.pop(sheetContext);
+                var accepted = false;
                 await ref
                     .read(appControllerProvider.notifier)
                     .sendMessage(
@@ -523,13 +723,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       text,
                       kind: MessageKind.image,
                       localPath: reference,
+                      onAccepted: () => accepted = true,
                     );
+                if (!accepted) await store.delete(reference);
               },
             ),
           ],
         ),
       ),
-    ).whenComplete(caption.dispose);
+    ).whenComplete(() async {
+      caption.dispose();
+      if (!handedOff) await store.delete(reference);
+    });
   }
 
   static const _supportedImageTypes = {
@@ -624,6 +829,41 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   );
                 },
               ),
+              DtSettingRow(
+                icon: Icons.volume_up_outlined,
+                title: '朗读消息',
+                onTap: () {
+                  Navigator.pop(context);
+                  showReadAloud(this.context, message.text);
+                },
+              ),
+              if (message.kind == MessageKind.image &&
+                  message.localPath != null)
+                DtSettingRow(
+                  icon: Icons.document_scanner_outlined,
+                  title: '识别图片文字',
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final bytes = await ref
+                        .read(attachmentStoreProvider)
+                        .readImage(message.localPath!);
+                    if (!mounted) return;
+                    if (bytes == null) {
+                      _showImageError('图片已失效，请重新发送。');
+                      return;
+                    }
+                    await _recognize(ImageContent.parse(bytes));
+                  },
+                ),
+              if (message.sources.isNotEmpty)
+                DtSettingRow(
+                  icon: Icons.travel_explore,
+                  title: '查看联网来源',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showSources(message);
+                  },
+                ),
               DtSettingRow(
                 icon: Icons.copy_rounded,
                 title: '复制文本',
@@ -728,6 +968,7 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
         children: [
           DtAvatar(
             name: character.name,
+            reference: character.avatarReference,
             color: character.avatarColor,
             size: 39,
             showStatus: true,
@@ -856,6 +1097,7 @@ class _MessageBubble extends StatelessWidget {
                   if (!mine) ...[
                     DtAvatar(
                       name: character.name,
+                      reference: character.avatarReference,
                       color: character.avatarColor,
                       size: 36,
                     ),
@@ -903,6 +1145,7 @@ class _MessageBubble extends StatelessWidget {
                     const SizedBox(width: 9),
                     DtAvatar(
                       name: owner.displayName,
+                      reference: owner.avatarReference,
                       color: owner.avatarColor,
                       size: 36,
                     ),
@@ -945,6 +1188,7 @@ class _ImageMessageBubble extends StatelessWidget {
           if (!mine) ...[
             DtAvatar(
               name: character.name,
+              reference: character.avatarReference,
               color: character.avatarColor,
               size: 36,
             ),
@@ -959,11 +1203,8 @@ class _ImageMessageBubble extends StatelessWidget {
                 onLongPress: onLongPress,
                 semanticLabel: '图片消息，长按操作',
                 child: Container(
-                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: mine
-                        ? DtColors.violet
-                        : (dark ? DtColors.darkSurface : DtColors.surface),
+                    color: dark ? DtColors.darkSurface : DtColors.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -979,7 +1220,7 @@ class _ImageMessageBubble extends StatelessWidget {
                           child: Text(
                             message.text,
                             style: TextStyle(
-                              color: mine ? Colors.white : null,
+                              color: dark ? Colors.white : DtColors.ink,
                               fontSize: 15.5,
                               height: 1.45,
                             ),
@@ -995,6 +1236,7 @@ class _ImageMessageBubble extends StatelessWidget {
             const SizedBox(width: 9),
             DtAvatar(
               name: owner.displayName,
+              reference: owner.avatarReference,
               color: owner.avatarColor,
               size: 36,
             ),
@@ -1152,6 +1394,7 @@ class _ChatComposer extends StatelessWidget {
     required this.onSend,
     required this.onCancel,
     required this.onMore,
+    required this.onVoice,
   });
 
   final TextEditingController controller;
@@ -1160,6 +1403,7 @@ class _ChatComposer extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onCancel;
   final VoidCallback onMore;
+  final VoidCallback onVoice;
 
   @override
   Widget build(BuildContext context) {
@@ -1172,6 +1416,8 @@ class _ChatComposer extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            DtIconButton(icon: Icons.mic_none, tooltip: '语音输入', onTap: onVoice),
+            DtIconButton(icon: FIcons.plus, tooltip: '更多功能', onTap: onMore),
             Expanded(
               child: DtTextField(
                 controller: controller,
@@ -1198,22 +1444,18 @@ class _ChatComposer extends StatelessWidget {
                       ? empty
                             ? Icons.stop_rounded
                             : FIcons.send
-                      : empty
-                      ? FIcons.plus
                       : FIcons.send,
                   tooltip: generating
                       ? empty
                             ? '停止生成'
                             : '发送并打断当前回复'
-                      : empty
-                      ? '更多功能'
                       : '发送',
                   onTap: generating
                       ? empty
                             ? onCancel
                             : onSend
                       : empty
-                      ? onMore
+                      ? null
                       : onSend,
                 );
               },

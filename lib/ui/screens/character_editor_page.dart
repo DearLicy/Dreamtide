@@ -1,4 +1,6 @@
 import '../components/dt_input.dart';
+import '../components/dt_avatar_editor.dart';
+import '../../data/image_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,7 +32,13 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
   late final TextEditingController _greeting;
   late final TextEditingController _tags;
   String? _existingId;
+  late final String _draftId = 'char_${const Uuid().v4()}';
   int _color = 0xFF4F7DF3;
+
+  AvatarChange? _avatarChange;
+  String? _avatarReference;
+  DtButtonStatus _saveStatus = DtButtonStatus.idle;
+  String? _saveError;
 
   @override
   void initState() {
@@ -51,6 +59,7 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
     );
     _greeting = TextEditingController(text: existing?.greeting ?? '');
     _tags = TextEditingController(text: existing?.tags.join('、') ?? '');
+    _avatarReference = existing?.avatarReference;
     _color = existing?.avatarColor ?? 0xFF4F7DF3;
   }
 
@@ -95,6 +104,21 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Center(
+            child: DtAvatarEditor(
+              name: _name.text,
+              color: _color,
+              reference: _avatarReference,
+              change: _avatarChange,
+              onChanged: (change) => setState(() => _avatarChange = change),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_saveError != null)
+            Text(
+              _saveError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           DtSurface(
             child: Column(
               children: [
@@ -147,7 +171,7 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                   maxLines: 4,
                   decoration: const InputDecoration(
                     labelText: '说话习惯与禁区',
-                    hintText: '句子长短、口头禅、绝不说的套话；没有就留空',
+                    hintText: '例如：多用短句、爱用“行吧”；绝不写“希望这能帮到你”、不在结尾硬加问号',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -181,7 +205,10 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
           const SizedBox(height: 18),
           DtButton(
             label: _existingId == null ? '创建并开始对话' : '保存角色',
-            onPressed: () {
+            status: _saveStatus,
+            successText: '已保存',
+            onPressed: () async {
+              if (_saveStatus != DtButtonStatus.idle) return;
               if (_name.text.trim().isEmpty) {
                 ScaffoldMessenger.of(
                   context,
@@ -189,9 +216,10 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                 return;
               }
               final controller = ref.read(appControllerProvider.notifier);
-              final id = _existingId ?? 'char_${const Uuid().v4()}';
+              final id = _existingId ?? _draftId;
               final character = Character(
                 id: id,
+                avatarReference: _avatarReference,
                 name: _name.text.trim().isEmpty ? '未命名角色' : _name.text.trim(),
                 handle: _handle.text.trim().isEmpty
                     ? '@dream'
@@ -209,14 +237,32 @@ class _CharacterEditorPageState extends ConsumerState<CharacterEditorPage> {
                     .where((e) => e.isNotEmpty)
                     .toList(),
               );
-              if (_existingId == null) {
-                final thread = controller.addCharacterWithRelationship(
+              setState(() {
+                _saveStatus = DtButtonStatus.loading;
+                _saveError = null;
+              });
+              try {
+                final thread = await controller.saveCharacterProfile(
                   character,
+                  avatar: _avatarChange,
+                  create: _existingId == null,
                 );
-                context.pushReplacement('/chat/${thread.id}');
-              } else {
-                controller.upsertCharacter(character);
-                Navigator.pop(context);
+                if (!mounted) return;
+                setState(() => _saveStatus = DtButtonStatus.success);
+                await Future<void>.delayed(const Duration(milliseconds: 240));
+                if (!mounted) return;
+                if (thread != null) {
+                  this.context.pushReplacement('/chat/${thread.id}');
+                } else {
+                  Navigator.pop(this.context);
+                }
+              } catch (_) {
+                if (mounted) {
+                  setState(() {
+                    _saveStatus = DtButtonStatus.idle;
+                    _saveError = '角色保存失败，请重试。';
+                  });
+                }
               }
             },
           ),

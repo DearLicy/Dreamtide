@@ -9,6 +9,7 @@ import '../../application/app_controller.dart';
 import '../../domain/models.dart';
 import '../components/dt_avatar.dart';
 import '../components/dt_controls.dart';
+import '../components/dt_edit_sheet.dart';
 import '../components/dt_motion.dart';
 import '../theme/dt_theme.dart';
 
@@ -228,6 +229,24 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                   Navigator.pop(context);
                 },
               ),
+              DtSettingRow(
+                icon: Icons.delete_sweep_outlined,
+                iconColor: DtColors.coral,
+                title: '清空单人物聊天记录',
+                subtitle: '只清掉这段对话，保留角色、梦设和关系数值',
+                onTap: () {
+                  Navigator.pop(context);
+                  showDtEditSheet(
+                    context: this.context,
+                    title: '清空与${thread.title}的聊天？',
+                    description:
+                        '将删除这条会话的全部消息、图片附件与对话摘要。角色、梦设、长期记忆和关系数值都会保留，不会自动发送开场白。此操作无法撤销。',
+                    actionLabel: '清空聊天记录',
+                    danger: true,
+                    onSubmit: (_) => controller.clearChatHistory(thread.id),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -248,6 +267,7 @@ class _OwnerAvatarButton extends StatelessWidget {
       semanticLabel: '打开个人资料',
       child: DtAvatar(
         name: owner.displayName,
+        reference: owner.avatarReference,
         color: owner.avatarColor,
         size: 42,
         showStatus: true,
@@ -296,6 +316,7 @@ class _ConversationTile extends StatelessWidget {
             children: [
               DtAvatar(
                 name: character.name,
+                reference: character.avatarReference,
                 color: character.avatarColor,
                 size: 50,
                 heroTag: 'character-${character.id}',

@@ -1,9 +1,10 @@
 import '../components/dt_input.dart';
+import '../components/dt_avatar_editor.dart';
+import '../../data/image_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/app_controller.dart';
-import '../components/dt_avatar.dart';
 import '../components/dt_controls.dart';
 import '../components/dt_detail_page.dart';
 
@@ -17,7 +18,13 @@ class ProfileEditPage extends ConsumerStatefulWidget {
 class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   late final TextEditingController _name;
   late final TextEditingController _signature;
+  late final TextEditingController _status;
   late int _color;
+
+  AvatarChange? _avatarChange;
+  String? _avatarReference;
+  DtButtonStatus _saveStatus = DtButtonStatus.idle;
+  String? _saveError;
 
   @override
   void initState() {
@@ -25,13 +32,16 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     final owner = ref.read(appControllerProvider).data.owner;
     _name = TextEditingController(text: owner.displayName);
     _signature = TextEditingController(text: owner.signature);
+    _status = TextEditingController(text: owner.status);
     _color = owner.avatarColor;
+    _avatarReference = owner.avatarReference;
   }
 
   @override
   void dispose() {
     _name.dispose();
     _signature.dispose();
+    _status.dispose();
     super.dispose();
   }
 
@@ -47,11 +57,12 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
           DtSurface(
             child: Column(
               children: [
-                DtAvatar(
+                DtAvatarEditor(
                   name: _name.text,
                   color: _color,
-                  size: 88,
-                  showStatus: true,
+                  reference: _avatarReference,
+                  change: _avatarChange,
+                  onChanged: (change) => setState(() => _avatarChange = change),
                 ),
                 const SizedBox(height: 16),
                 _AvatarColors(
@@ -84,32 +95,61 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                InputDecorator(
+                DtTextField(
+                  controller: _status,
                   decoration: const InputDecoration(
-                    labelText: '在线状态',
-                    helperText: '状态自定义将在 V2.1 开放',
+                    labelText: '状态',
+                    hintText: '例如：看书中、暂时离开……',
+                    helperText: '只作本地资料展示，不表示角色真实在线',
                   ),
-                  child: Text(owner.status),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 18),
+          if (_saveError != null)
+            Text(
+              _saveError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           DtButton(
             label: '保存资料',
-            onPressed: () {
-              ref
-                  .read(appControllerProvider.notifier)
-                  .updateOwner(
-                    owner.copyWith(
-                      displayName: _name.text.trim().isEmpty
-                          ? owner.displayName
-                          : _name.text.trim(),
-                      signature: _signature.text.trim(),
-                      avatarColor: _color,
-                    ),
-                  );
-              Navigator.pop(context);
+            status: _saveStatus,
+            successText: '已保存',
+            onPressed: () async {
+              if (_saveStatus != DtButtonStatus.idle) return;
+              setState(() {
+                _saveStatus = DtButtonStatus.loading;
+                _saveError = null;
+              });
+              try {
+                await ref
+                    .read(appControllerProvider.notifier)
+                    .saveOwnerProfile(
+                      owner.copyWith(
+                        displayName: _name.text.trim().isEmpty
+                            ? owner.displayName
+                            : _name.text.trim(),
+                        signature: _signature.text.trim(),
+                        status: _status.text.trim().isEmpty
+                            ? owner.status
+                            : _status.text.trim(),
+                        avatarColor: _color,
+                      ),
+                      avatar: _avatarChange,
+                    );
+                if (!mounted) return;
+                setState(() => _saveStatus = DtButtonStatus.success);
+                await Future<void>.delayed(const Duration(milliseconds: 240));
+                if (mounted) Navigator.pop(this.context);
+              } catch (_) {
+                if (mounted) {
+                  setState(() {
+                    _saveStatus = DtButtonStatus.idle;
+                    _saveError = '资料保存失败，请重试。';
+                  });
+                }
+              }
             },
           ),
         ],

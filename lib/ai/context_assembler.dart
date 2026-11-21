@@ -3,10 +3,44 @@ import 'relationship_dynamics.dart';
 import 'reply_planner.dart';
 
 class PromptMessage {
-  const PromptMessage(this.role, this.content);
+  const PromptMessage(
+    this.role,
+    this.content, {
+    this.imageReference,
+    this.imageDataUrl,
+  });
 
   final String role;
   final String content;
+  final String? imageReference;
+  final String? imageDataUrl;
+
+  Object get openAiContent => imageDataUrl == null
+      ? content
+      : [
+          {'type': 'text', 'text': content},
+          {
+            'type': 'image_url',
+            'image_url': {'url': imageDataUrl},
+          },
+        ];
+
+  Object get anthropicContent {
+    final image = imageDataUrl;
+    if (image == null) return content;
+    final comma = image.indexOf(',');
+    return [
+      {
+        'type': 'image',
+        'source': {
+          'type': 'base64',
+          'media_type': image.substring(5, image.indexOf(';')),
+          'data': image.substring(comma + 1),
+        },
+      },
+      {'type': 'text', 'text': content},
+    ];
+  }
 }
 
 class PromptBundle {
@@ -32,6 +66,7 @@ class ContextAssembler {
     required ChatThread thread,
     required String userInput,
     DateTime? now,
+    String? imageReference,
   }) {
     final relationship = data.relationshipForThread(thread);
     final character = relationship == null
@@ -87,8 +122,11 @@ class ContextAssembler {
           PromptMessage(
             message.fromAi ? 'assistant' : 'user',
             _historyText(message),
+            imageReference: message.kind == MessageKind.image
+                ? message.localPath
+                : null,
           ),
-        PromptMessage('user', userInput.trim()),
+        PromptMessage('user', userInput.trim(), imageReference: imageReference),
       ],
       usedMemoryIds: memories.map((e) => e.id).toList(),
       replyPlan: replyPlan,

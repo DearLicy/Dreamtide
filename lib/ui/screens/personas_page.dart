@@ -150,7 +150,12 @@ class _PersonaCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DtAvatar(name: persona.name, color: persona.avatarColor, size: 58),
+            DtAvatar(
+              name: persona.name,
+              reference: persona.avatarReference,
+              color: persona.avatarColor,
+              size: 58,
+            ),
             const SizedBox(width: 13),
             Expanded(
               child: Column(

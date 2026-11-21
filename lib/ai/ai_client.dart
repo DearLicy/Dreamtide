@@ -409,7 +409,7 @@ $safeConversationExcerpt
             if (maxOutputTokens != null) 'max_tokens': maxOutputTokens,
             'messages': [
               for (final message in messages)
-                {'role': message.role, 'content': message.content},
+                {'role': message.role, 'content': message.openAiContent},
             ],
           });
     final response = await _client.send(request);
@@ -574,7 +574,7 @@ $safeConversationExcerpt
             'system': system,
             'messages': [
               for (final message in chat)
-                {'role': message.role, 'content': message.content},
+                {'role': message.role, 'content': message.anthropicContent},
             ],
           });
     final response = await _client.send(request);

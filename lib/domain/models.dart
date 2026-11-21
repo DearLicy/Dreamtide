@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dialogue.dart';
+import 'search_source.dart';
+export 'search_source.dart';
 
 enum ContentLevel {
   sfw('SFW', '日常与恋爱'),
@@ -50,8 +52,10 @@ class OwnerProfile {
     required this.signature,
     required this.avatarColor,
     this.status = '在线',
+    this.avatarReference,
   });
 
+  final String? avatarReference;
   final String id;
   final String displayName;
   final String signature;
@@ -59,11 +63,16 @@ class OwnerProfile {
   final String status;
 
   OwnerProfile copyWith({
+    String? avatarReference,
+    bool clearAvatar = false,
     String? displayName,
     String? signature,
     int? avatarColor,
     String? status,
   }) => OwnerProfile(
+    avatarReference: clearAvatar
+        ? null
+        : avatarReference ?? this.avatarReference,
     id: id,
     displayName: displayName ?? this.displayName,
     signature: signature ?? this.signature,
@@ -72,6 +81,7 @@ class OwnerProfile {
   );
 
   Map<String, dynamic> toJson() => {
+    'avatarReference': avatarReference,
     'id': id,
     'displayName': displayName,
     'signature': signature,
@@ -80,6 +90,7 @@ class OwnerProfile {
   };
 
   factory OwnerProfile.fromJson(Map<String, dynamic> json) => OwnerProfile(
+    avatarReference: json['avatarReference'] as String?,
     id: json['id'] as String? ?? 'owner',
     displayName: json['displayName'] as String? ?? '梦境旅人',
     signature: json['signature'] as String? ?? '今晚也做一个好梦。',
@@ -99,8 +110,10 @@ class UserPersona {
     required this.background,
     required this.preferences,
     required this.avatarColor,
+    this.avatarReference,
   });
 
+  final String? avatarReference;
   final String id;
   final String name;
   final String age;
@@ -112,6 +125,8 @@ class UserPersona {
   final int avatarColor;
 
   UserPersona copyWith({
+    String? avatarReference,
+    bool clearAvatar = false,
     String? name,
     String? age,
     String? pronouns,
@@ -121,6 +136,9 @@ class UserPersona {
     String? preferences,
     int? avatarColor,
   }) => UserPersona(
+    avatarReference: clearAvatar
+        ? null
+        : avatarReference ?? this.avatarReference,
     id: id,
     name: name ?? this.name,
     age: age ?? this.age,
@@ -133,6 +151,7 @@ class UserPersona {
   );
 
   Map<String, dynamic> toJson() => {
+    'avatarReference': avatarReference,
     'id': id,
     'name': name,
     'age': age,
@@ -145,6 +164,7 @@ class UserPersona {
   };
 
   factory UserPersona.fromJson(Map<String, dynamic> json) => UserPersona(
+    avatarReference: json['avatarReference'] as String?,
     id: json['id'] as String? ?? '',
     name: json['name'] as String? ?? '未命名梦设',
     age: json['age'] as String? ?? '',
@@ -170,8 +190,10 @@ class Character {
     required this.tags,
     this.voiceProfile = '',
     this.personalPreferences = '',
+    this.avatarReference,
   });
 
+  final String? avatarReference;
   final String id;
   final String name;
   final String handle;
@@ -189,6 +211,8 @@ class Character {
   final String personalPreferences;
 
   Character copyWith({
+    String? avatarReference,
+    bool clearAvatar = false,
     String? name,
     String? handle,
     String? age,
@@ -200,6 +224,9 @@ class Character {
     String? voiceProfile,
     String? personalPreferences,
   }) => Character(
+    avatarReference: clearAvatar
+        ? null
+        : avatarReference ?? this.avatarReference,
     id: id,
     name: name ?? this.name,
     handle: handle ?? this.handle,
@@ -214,6 +241,7 @@ class Character {
   );
 
   Map<String, dynamic> toJson() => {
+    'avatarReference': avatarReference,
     'id': id,
     'name': name,
     'handle': handle,
@@ -228,6 +256,7 @@ class Character {
   };
 
   factory Character.fromJson(Map<String, dynamic> json) => Character(
+    avatarReference: json['avatarReference'] as String?,
     id: json['id'] as String? ?? '',
     name: json['name'] as String? ?? '未命名角色',
     handle: json['handle'] as String? ?? '@character',
@@ -532,6 +561,8 @@ class Message {
     this.localPath,
     this.interrupted = false,
     this.editedAt,
+    this.sources = const [],
+    this.searchWeb = false,
   });
 
   final String id;
@@ -545,21 +576,29 @@ class Message {
   final String? localPath;
   final bool interrupted;
   final DateTime? editedAt;
+  final List<SearchSource> sources;
+  final bool searchWeb;
 
-  Message copyWith({String? text, bool? interrupted, DateTime? editedAt}) =>
-      Message(
-        id: id,
-        threadId: threadId,
-        senderId: senderId,
-        senderName: senderName,
-        text: text ?? this.text,
-        createdAt: createdAt,
-        kind: kind,
-        fromAi: fromAi,
-        localPath: localPath,
-        interrupted: interrupted ?? this.interrupted,
-        editedAt: editedAt ?? this.editedAt,
-      );
+  Message copyWith({
+    String? text,
+    bool? interrupted,
+    DateTime? editedAt,
+    List<SearchSource>? sources,
+  }) => Message(
+    id: id,
+    threadId: threadId,
+    senderId: senderId,
+    senderName: senderName,
+    text: text ?? this.text,
+    createdAt: createdAt,
+    kind: kind,
+    fromAi: fromAi,
+    localPath: localPath,
+    interrupted: interrupted ?? this.interrupted,
+    editedAt: editedAt ?? this.editedAt,
+    sources: sources ?? this.sources,
+    searchWeb: searchWeb,
+  );
 
   bool get isRenderable =>
       (localPath?.trim().isNotEmpty ?? false) ||
@@ -579,6 +618,8 @@ class Message {
     'localPath': localPath,
     'interrupted': interrupted,
     'editedAt': editedAt?.toIso8601String(),
+    'sources': sources.map((s) => s.toJson()).toList(),
+    'searchWeb': searchWeb,
   };
 
   factory Message.fromJson(Map<String, dynamic> json) => Message(
@@ -597,6 +638,13 @@ class Message {
     localPath: json['localPath'] as String?,
     interrupted: json['interrupted'] as bool? ?? false,
     editedAt: DateTime.tryParse(json['editedAt'] as String? ?? ''),
+    searchWeb: json['searchWeb'] as bool? ?? false,
+    sources:
+        (json['sources'] as List?)
+            ?.whereType<Map>()
+            .map((s) => SearchSource.fromJson(Map<String, dynamic>.from(s)))
+            .toList() ??
+        const [],
   );
 }
 
@@ -1118,6 +1166,16 @@ class AppData {
             .toList() ??
         const [],
   );
+
+  Set<String> get attachmentReferences => {
+    if (owner.avatarReference != null) owner.avatarReference!,
+    for (final persona in personas)
+      if (persona.avatarReference != null) persona.avatarReference!,
+    for (final character in characters)
+      if (character.avatarReference != null) character.avatarReference!,
+    for (final message in messages)
+      if (message.localPath != null) message.localPath!,
+  };
 
   String encode() => jsonEncode(toJson());
 

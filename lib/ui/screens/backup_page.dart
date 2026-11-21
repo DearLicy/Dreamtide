@@ -1,4 +1,3 @@
-import '../components/dt_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,158 +6,126 @@ import 'package:go_router/go_router.dart';
 import '../../application/app_controller.dart';
 import '../components/dt_controls.dart';
 import '../components/dt_detail_page.dart';
-import '../theme/dt_theme.dart';
+import '../components/dt_edit_sheet.dart';
 
-class BackupPage extends ConsumerWidget {
+class BackupPage extends ConsumerStatefulWidget {
   const BackupPage({super.key});
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BackupPage> createState() => _BackupPageState();
+}
+
+class _BackupPageState extends ConsumerState<BackupPage> {
+  DtButtonStatus _exportStatus = DtButtonStatus.idle;
+  String? _error;
+  @override
+  Widget build(BuildContext context) {
     final controller = ref.read(appControllerProvider.notifier);
     return DtDetailPage(
       title: '数据与备份',
-      subtitle: 'V2 数据只保存在本机或浏览器',
+      subtitle: '包含本地头像和图片，不包含 API Key',
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           DtSurface(
-            padding: EdgeInsets.zero,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DtSettingRow(
-                  icon: Icons.copy_all_outlined,
-                  title: '复制完整备份',
-                  subtitle: '复制 JSON 到剪贴板，不包含 API Key',
-                  onTap: () async {
-                    await Clipboard.setData(
-                      ClipboardData(text: controller.exportBackup()),
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('备份 JSON 已复制')),
+                const Text(
+                  '完整备份',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '导出角色、梦设、关系、消息、记忆、动态及图片原件。备份包含私人内容，请保存在你信任的地方。',
+                  style: TextStyle(fontSize: 13, height: 1.6),
+                ),
+                const SizedBox(height: 14),
+                DtButton(
+                  label: '复制完整备份',
+                  loadingText: '正在打包附件…',
+                  successText: '已复制',
+                  status: _exportStatus,
+                  onPressed: () async {
+                    if (_exportStatus != DtButtonStatus.idle) return;
+                    setState(() {
+                      _error = null;
+                      _exportStatus = DtButtonStatus.loading;
+                    });
+                    try {
+                      final backup = await controller.exportPortableBackup();
+                      await Clipboard.setData(ClipboardData(text: backup));
+                      if (!mounted) return;
+                      setState(() => _exportStatus = DtButtonStatus.success);
+                      await Future<void>.delayed(
+                        const Duration(milliseconds: 300),
                       );
+                    } catch (error) {
+                      if (mounted) {
+                        setState(
+                          () => _error = error is StateError
+                              ? error.message
+                              : '备份失败，请重试。',
+                        );
+                      }
+                    } finally {
+                      if (mounted) {
+                        setState(() => _exportStatus = DtButtonStatus.idle);
+                      }
                     }
                   },
                 ),
-                const Divider(indent: 62),
-                DtSettingRow(
-                  icon: Icons.restore_outlined,
-                  iconColor: DtColors.violet,
-                  title: '从 JSON 恢复',
-                  subtitle: '覆盖当前本机数据',
-                  onTap: () => _showImport(context, ref),
-                ),
-                const Divider(indent: 62),
-                DtSettingRow(
-                  icon: Icons.refresh_rounded,
-                  iconColor: DtColors.coral,
-                  title: '清空本地数据',
-                  subtitle: '清空当前 V2 数据',
-                  onTap: () => _confirmReset(context, controller),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: DtColors.brand.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(17),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  color: DtColors.brand,
-                  size: 20,
-                ),
-                SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    'Web 数据保存在浏览器本地存储中。清理站点数据、隐私模式结束或浏览器迁移可能造成丢失；请定期复制备份。',
-                    style: TextStyle(fontSize: 11.5, height: 1.55),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  void _showImport(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('从 JSON 恢复'),
-        content: DtTextField(
-          controller: controller,
-          minLines: 8,
-          maxLines: 16,
-          decoration: const InputDecoration(
-            hintText: '粘贴 dreamtide V2 备份 JSON',
+          const SizedBox(height: 16),
+          DtSettingRow(
+            icon: Icons.restore,
+            title: '从 JSON 恢复',
+            subtitle: '检查全部附件后覆盖当前数据，保留已配置密钥',
+            onTap: () => showDtEditSheet(
+              context: context,
+              title: '从 JSON 恢复',
+              description:
+                  '恢复将替换本机数据。支持旧 V2 JSON 和新版含图片的完整备份；旧版 JSON 不包含图片原件。建议先备份当前数据。',
+              initialText: '',
+              actionLabel: '覆盖恢复',
+              danger: true,
+              onSubmit: controller.importBackup,
+            ),
           ),
-        ),
-        actions: [
-          DtActionButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+          DtSettingRow(
+            icon: Icons.delete_outline,
+            title: '清空本地数据',
+            subtitle: '删除全部角色、梦设、图片和密钥，恢复空白状态',
+            onTap: () => showDtEditSheet(
+              context: context,
+              title: '清空全部本地数据？',
+              description: '角色、梦设、会话、记忆、动态、图片和 API Key 都会被删除。此操作无法撤销。',
+              actionLabel: '清空全部数据',
+              danger: true,
+              onSubmit: (_) async {
+                await controller.resetData();
+                if (context.mounted) context.go('/messages');
+              },
+            ),
           ),
-          DtActionButton.primary(
-            onPressed: () async {
-              try {
-                await ref
-                    .read(appControllerProvider.notifier)
-                    .importBackup(controller.text);
-                if (context.mounted) Navigator.pop(context);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('恢复成功')));
-                }
-              } catch (error) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('恢复失败：$error')));
-                }
-              }
-            },
-            child: const Text('覆盖恢复'),
-          ),
-        ],
-      ),
-    ).whenComplete(controller.dispose);
-  }
-
-  Future<void> _confirmReset(
-    BuildContext context,
-    AppController controller,
-  ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('重置全部 V2 数据？'),
-        content: const Text('当前角色、关系、消息、记忆与动态都会被清空，并恢复为空白状态。'),
-        actions: [
-          DtActionButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          DtActionButton.primary(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('重置'),
+          const SizedBox(height: 16),
+          const Text(
+            'Web 数据与附件保存在当前浏览器。清理站点数据、结束隐私模式或更换浏览器可能丢失数据，请定期备份。',
+            style: TextStyle(fontSize: 12, height: 1.6),
           ),
         ],
       ),
     );
-    if (ok == true) {
-      if (context.mounted) context.go('/messages');
-      await controller.resetData();
-    }
   }
 }

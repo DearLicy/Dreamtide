@@ -151,6 +151,41 @@ void main() {
     },
   );
 
+  testWidgets(
+    'single thread clear is available from the message list action sheet',
+    (tester) async {
+      final data = buildSeedData();
+      final container = await fixture.start(
+        tester,
+        data.copyWith(settings: data.settings.copyWith(ageConfirmed: true)),
+      );
+      final thread = data.threads.firstWhere(
+        (item) => item.id == 'thread_shen',
+      );
+      final tile = find.text(thread.title);
+      await tester.longPress(tile);
+      await tester.pumpAndSettle();
+      expect(find.text('清空单人物聊天记录'), findsOneWidget);
+      await tester.tap(find.text('清空单人物聊天记录'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('清空与${thread.title}的聊天'), findsOneWidget);
+      await tester.tap(find.text('清空聊天记录'));
+      await tester.pumpAndSettle();
+      final result = container.read(appControllerProvider).data;
+      expect(result.messages.where((m) => m.threadId == thread.id), isEmpty);
+      expect(
+        result.relationships
+            .firstWhere((r) => r.id == 'rel_shen')
+            .metrics['好感'],
+        61,
+      );
+      expect(result.characters.any((c) => c.id == 'char_shen'), isTrue);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      container.dispose();
+    },
+  );
+
   testWidgets('history search, select results and batch delete work together', (
     tester,
   ) async {
